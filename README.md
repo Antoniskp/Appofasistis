@@ -33,6 +33,16 @@ cp .env.example .env   # edit with your server URL + worker token
 npm start
 ```
 
+## Windows Easy Install
+
+No command line needed — just double-click!
+
+1. **Double-click `install.bat`** — checks Node.js, installs dependencies, and creates `.env` for you.
+2. **Edit `.env`** with Notepad — fill in your `SERVER_URL` and `WORKER_TOKEN` (get the token from the Appofa admin panel).
+3. **Double-click `start.bat`** — launches the worker. A window will open showing live log output.
+
+> **First time?** You'll need [Node.js 18+](https://nodejs.org) installed. `install.bat` will tell you if it's missing.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and set the following variables:

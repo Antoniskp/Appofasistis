@@ -33,9 +33,108 @@ cp .env.example .env   # edit with your server URL + worker token
 npm start
 ```
 
-## Status
+## Configuration
 
-🚧 Under development — full implementation coming soon.
+Copy `.env.example` to `.env` and set the following variables:
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SERVER_URL` | ✅ | — | WebSocket URL of the Appofa server (e.g. `wss://appofasi.gr/ws/workers`) |
+| `WORKER_TOKEN` | ✅ | — | Authentication token obtained from the Appofa admin panel |
+| `WORKER_NAME` | | `unnamed-worker` | Human-readable name shown in the admin dashboard |
+| `MAX_CONCURRENT_TASKS` | | `3` | How many tasks to process simultaneously |
+| `HEARTBEAT_INTERVAL` | | `10000` | How often (ms) to send a heartbeat to the server |
+| `RECONNECT_DELAY` | | `5000` | Base delay (ms) before reconnecting after a disconnect |
+| `LOG_LEVEL` | | `info` | Log verbosity: `debug` \| `info` \| `warn` \| `error` |
+
+## File Structure
+
+```
+├── package.json
+├── .env.example
+├── .gitignore
+├── README.md
+├── LICENSE
+└── src/
+    ├── index.js          # Entry point — bootstraps everything
+    ├── connection.js     # WebSocket connection, reconnect, exponential backoff
+    ├── heartbeat.js      # Periodic CPU/memory reporting to server
+    ├── taskRunner.js     # Receives tasks, routes to handlers, sends results
+    ├── logger.js         # Timestamped logger with emoji prefixes
+    ├── config.js         # Loads .env, validates required config
+    └── tasks/
+        ├── index.js      # Task registry — maps task type strings to handlers
+        ├── linkPreview.js   # Fetches URL, parses OpenGraph meta tags
+        ├── pollStats.js     # Aggregates votes into counts and percentages
+        ├── leaderboard.js   # Sorts and ranks scores, returns top N
+        └── textAnalysis.js  # Word count, reading time, keyword extraction
+```
+
+## Supported Task Types
+
+### `linkPreview`
+Fetches a URL and extracts OpenGraph/meta preview data.
+
+**Payload:** `{ url: string }`
+
+**Result:** `{ url, title, description, image, siteName }`
+
+---
+
+### `pollStats`
+Aggregates an array of votes into counts and percentages.
+
+**Payload:** `{ votes: number[], options?: string[] }`
+
+**Result:** `{ total: number, results: [{ option, votes, percentage }] }`
+
+---
+
+### `leaderboard`
+Sorts and ranks an array of score entries, returning the top N.
+
+**Payload:** `{ scores: [{ id, name, score }], topN?: number }`
+
+**Result:** `{ ranked: [{ rank, id, name, score }] }`
+
+---
+
+### `textAnalysis`
+Analyses text for word count, reading time, and top keywords.
+
+**Payload:** `{ text: string, topKeywords?: number }`
+
+**Result:** `{ wordCount, readingTimeMinutes, keywords: [{ word, count }] }`
+
+## WebSocket Protocol
+
+All messages are JSON objects. The worker:
+
+1. **Registers** on connection open:
+   ```json
+   { "type": "register", "name": "my-desktop", "capabilities": ["linkPreview", "pollStats", "leaderboard", "textAnalysis"], "maxConcurrentTasks": 3 }
+   ```
+
+2. **Receives tasks** from the server:
+   ```json
+   { "type": "task", "taskId": "abc123", "taskType": "linkPreview", "payload": { "url": "https://example.com" } }
+   ```
+
+3. **Sends results** back:
+   ```json
+   { "type": "taskResult", "taskId": "abc123", "status": "success", "result": { ... } }
+   ```
+
+4. **Sends heartbeats** periodically:
+   ```json
+   { "type": "heartbeat", "load": 0.5, "memory": { "used": 512, "total": 8192, "usedMB": 512, "totalMB": 8192 }, "activeTasks": 1 }
+   ```
+
+## Development
+
+```bash
+npm run dev   # starts with Node.js built-in watch (Node 18+)
+```
 
 ## License
 

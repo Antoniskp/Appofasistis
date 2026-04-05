@@ -23,11 +23,26 @@ graph LR
     Server --> Frontend["Next.js Frontend"]
 ```
 
-## Quick Start
+## Download
+
+### Option 1 — Download ZIP (no Git required)
+
+1. Go to the [GitHub repository](https://github.com/Antoniskp/Appofasistis).
+2. Click the green **"<> Code"** button → **"Download ZIP"**.
+3. Extract the ZIP to a folder of your choice.
+
+### Option 2 — Clone with Git
 
 ```bash
 git clone https://github.com/Antoniskp/Appofasistis.git
-cd Appofasistis
+```
+
+> **Note:** Both options give you the same files. Use whichever you're more comfortable with.
+
+## Quick Start
+
+```bash
+cd Appofasistis        # navigate to the cloned repo or extracted ZIP folder
 npm install
 cp .env.example .env   # edit with your server URL + worker token
 npm start

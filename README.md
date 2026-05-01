@@ -3,6 +3,7 @@
 **Desktop worker node for [Appofa](https://github.com/Antoniskp/Appofa) — offloads server tasks to volunteer PCs**
 
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)
+[![CI](https://github.com/Antoniskp/Appofasistis/actions/workflows/ci.yml/badge.svg)](https://github.com/Antoniskp/Appofasistis/actions/workflows/ci.yml)
 
 ---
 
@@ -80,19 +81,29 @@ Copy `.env.example` to `.env` and set the following variables:
 ├── .gitignore
 ├── README.md
 ├── LICENSE
-└── src/
-    ├── index.js          # Entry point — bootstraps everything
-    ├── connection.js     # WebSocket connection, reconnect, exponential backoff
-    ├── heartbeat.js      # Periodic CPU/memory reporting to server
-    ├── taskRunner.js     # Receives tasks, routes to handlers, sends results
-    ├── logger.js         # Timestamped logger with emoji prefixes
-    ├── config.js         # Loads .env, validates required config
-    └── tasks/
-        ├── index.js      # Task registry — maps task type strings to handlers
-        ├── linkPreview.js   # Fetches URL, parses OpenGraph meta tags
-        ├── pollStats.js     # Aggregates votes into counts and percentages
-        ├── leaderboard.js   # Sorts and ranks scores, returns top N
-        └── textAnalysis.js  # Word count, reading time, keyword extraction
+├── install.bat               # Windows one-click setup
+├── start.bat                 # Windows one-click start
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # GitHub Actions CI (Node 18/20/22)
+├── src/
+│   ├── index.js              # Entry point — bootstraps everything
+│   ├── connection.js         # WebSocket connection, reconnect, exponential backoff
+│   ├── heartbeat.js          # Periodic CPU/memory reporting to server
+│   ├── taskRunner.js         # Receives tasks, routes to handlers, sends results
+│   ├── logger.js             # Timestamped logger with emoji prefixes
+│   ├── config.js             # Loads .env, validates required config
+│   └── tasks/
+│       ├── index.js          # Task registry — maps task type strings to handlers
+│       ├── linkPreview.js    # Fetches URL, parses OpenGraph meta tags
+│       ├── pollStats.js      # Aggregates votes into counts and percentages
+│       ├── leaderboard.js    # Sorts and ranks scores, returns top N
+│       └── textAnalysis.js   # Word count, reading time, keyword extraction
+└── test/
+    ├── linkPreview.test.js
+    ├── pollStats.test.js
+    ├── leaderboard.test.js
+    └── textAnalysis.test.js
 ```
 
 ## Supported Task Types
@@ -160,6 +171,25 @@ All messages are JSON objects. The worker:
 ```bash
 npm run dev   # starts with Node.js built-in watch (Node 18+)
 ```
+
+## Running Tests
+
+```bash
+npm test
+```
+
+Tests cover all four built-in task handlers (`pollStats`, `leaderboard`, `textAnalysis`, `linkPreview`) using the Node.js built-in test runner — no extra dependencies needed.
+
+## Known Limitations & Future Work
+
+The following gaps exist because the Appofa backend WebSocket server is not yet publicly available:
+
+| Gap | Notes |
+|---|---|
+| **`SERVER_URL` / `WORKER_TOKEN` required at startup** | You must provide real values before the worker can connect. Until the Appofa admin panel issues tokens, you cannot connect to a live server. |
+| **No mock/local server bundled** | The worker will keep reconnecting (with exponential back-off) until the server comes online — this is intentional and safe. |
+| **Worker registration not yet persisted server-side** | The server registration flow is implemented on the worker side; the Appofa backend side is a future deliverable. |
+| **`os.loadavg()` always returns `[0,0,0]` on Windows** | Node.js does not support `loadavg` on Windows. The heartbeat will report `load: 0` on Windows machines, which is harmless. |
 
 ## License
 

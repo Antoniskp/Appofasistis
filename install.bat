@@ -1,9 +1,8 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
 
 echo =============================================
-echo   Appofasistis — Windows Setup
+echo   Appofasistis - Windows Setup
 echo =============================================
 echo.
 
@@ -68,11 +67,11 @@ if not exist ".env" (
     echo =============================================
     echo.
     echo Open .env in Notepad and fill in:
-    echo   SERVER_URL   — your Appofa server WebSocket URL
-    echo   WORKER_TOKEN — your token from the Appofa admin panel
+    echo   SERVER_URL   - your Appofa server WebSocket URL
+    echo   WORKER_TOKEN - your token from the Appofa admin panel
     echo.
 ) else (
-    echo [OK] .env already exists — config is already set up.
+    echo [OK] .env already exists - config is already set up.
     echo.
 )
 

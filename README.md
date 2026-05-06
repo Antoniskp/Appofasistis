@@ -93,14 +93,21 @@ Copy `.env.example` to `.env` and set the following variables:
 │   ├── taskRunner.js         # Receives tasks, routes to handlers, sends results
 │   ├── logger.js             # Timestamped logger with emoji prefixes
 │   ├── config.js             # Loads .env, validates required config
+│   ├── adapters/
+│   │   └── parliamentBills.js  # Fetch + parse Hellenic Parliament HTML → normalised items
+│   ├── jobs/
+│   │   └── runParliamentBills.js  # CLI scraper job — saves output/parliament-bills.json
 │   └── tasks/
 │       ├── index.js          # Task registry — maps task type strings to handlers
 │       ├── linkPreview.js    # Fetches URL, parses OpenGraph meta tags
 │       ├── pollStats.js      # Aggregates votes into counts and percentages
 │       ├── leaderboard.js    # Sorts and ranks scores, returns top N
 │       └── textAnalysis.js   # Word count, reading time, keyword extraction
+├── output/
+│   └── parliament-bills.json  # Generated locally by scrape:parliament (not in Git)
 └── test/
     ├── linkPreview.test.js
+    ├── parliamentBills.test.js
     ├── pollStats.test.js
     ├── leaderboard.test.js
     └── textAnalysis.test.js
@@ -194,3 +201,69 @@ The following gaps exist because the Appofa backend WebSocket server is not yet 
 ## License
 
 Copyright (c) 2026 Antoniskp. All Rights Reserved.
+
+---
+
+## Parliament Bills Scraper
+
+A standalone scraper for the [Hellenic Parliament legislative work pages](https://www.hellenicparliament.gr/Nomothetiko-Ergo).
+It runs **entirely on your PC** — no server connection or token required.
+
+### How to run
+
+```bash
+npm install
+npm run scrape:parliament
+```
+
+Output is saved to `output/parliament-bills.json`.
+
+### Output schema
+
+```json
+{
+  "source_name": "hellenic-parliament-bills",
+  "source_type": "bill",
+  "scraped_at": "2026-05-06T12:00:00.000Z",
+  "items": [
+    {
+      "external_id": "...",
+      "title_official": "...",
+      "summary_official": null,
+      "status": "submitted | in_committee | passed | completed | consultation | scheduled | unknown",
+      "status_label_el": "Κατατεθέντα (Σχέδιο νόμου)",
+      "category": null,
+      "published_at": "YYYY-MM-DD",
+      "meeting_date": null,
+      "vote_date": null,
+      "source_url": "https://www.hellenicparliament.gr/...",
+      "raw_text": "..."
+    }
+  ]
+}
+```
+
+### File structure
+
+```
+src/
+  adapters/
+    parliamentBills.js   # fetch + parse Hellenic Parliament HTML → normalised items
+  jobs/
+    runParliamentBills.js # CLI entry point — runs scraper and writes JSON file
+output/
+  parliament-bills.json  # generated locally (not committed to Git)
+```
+
+### Manual testing
+
+1. Run `npm run scrape:parliament` — check that the terminal shows item counts and no errors.
+2. Open `output/parliament-bills.json` and verify that bill titles, dates, and `source_url` values look correct.
+3. If the page HTML structure changes, update the selectors in `src/adapters/parliamentBills.js`.
+
+### Notes
+
+- The scraper uses only Node.js built-in modules (`https`, `fs`) and the already-bundled `node-html-parser` — no extra dependencies needed.
+- Output is de-duplicated by `external_id`.
+- Fields that cannot be reliably extracted from the page are left as `null` (e.g. `summary_official`, `category`, `meeting_date`, `vote_date`).
+- AI analysis of items is a separate step handled by the Appofa server and is **not** included here.

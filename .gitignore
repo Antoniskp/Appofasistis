@@ -21,3 +21,6 @@ Thumbs.db
 
 # Build artifacts
 dist/
+
+# Scraper output (committed as .gitkeep only; actual data files are local)
+output/*.json

@@ -85,7 +85,7 @@ test('resolveUrl — resolves relative path against base', () => {
 
 test('resolveUrl — returns SOURCE_URL for null/empty input', () => {
   const result = resolveUrl(null);
-  assert.ok(result.startsWith('https://www.hellenicparliament.gr'));
+  assert.equal(result, 'https://www.hellenicparliament.gr/Nomothetiko-Ergo');
 });
 
 // ── deriveExternalId ──────────────────────────────────────────────────────

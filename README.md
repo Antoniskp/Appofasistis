@@ -223,7 +223,10 @@ Output is saved to `output/parliament-bills.json`.
 1. Loads a fixed list of known Hellenic Parliament section URLs (submitted bills and passed bills).
 2. Fetches each section page over HTTPS and parses the static HTML.
 3. Extracts bill rows from parliament-style `<table>` elements.
-4. Normalises each item to the output schema and writes `output/parliament-bills.json`.
+4. For each extracted bill, fetches its detail page (`source_url` with `law_id` filter) to obtain the full (non-truncated) official title and any available summary.
+5. Derives a stable `external_id` of the form `hp-bill-<law_id>` from the URL, falling back to a title slug if no `law_id` is present.
+6. Infers a conservative English `category` code from the ministry/topic text when a confident match exists.
+7. Normalises each item to the output schema and writes `output/parliament-bills.json`.
 
 > **Why fixed URLs?**  The landing page (`/Nomothetiko-Ergo`) renders its navigation menu via JavaScript.  A server-side HTML parser cannot discover the section links dynamically, so they are hard-coded in `KNOWN_SECTIONS` inside `src/adapters/parliamentBills.js`.  If a section URL changes, update that constant.
 
@@ -236,16 +239,16 @@ Output is saved to `output/parliament-bills.json`.
   "scraped_at": "2026-05-06T12:00:00.000Z",
   "items": [
     {
-      "external_id": "...",
-      "title_official": "...",
-      "summary_official": null,
+      "external_id": "hp-bill-<law_id UUID>",
+      "title_official": "Full official title (fetched from detail page when possible)",
+      "summary_official": "Official description if found on detail page, otherwise null",
       "status": "submitted | in_committee | passed | completed | consultation | scheduled | unknown",
       "status_label_el": "Κατατεθέντα (Σχέδιο νόμου)",
-      "category": null,
+      "category": "health | energy | economy | education | agriculture | justice | foreign_affairs | interior | labour | infrastructure | defence | tourism | digital | social | null",
       "published_at": "YYYY-MM-DD",
       "meeting_date": null,
       "vote_date": null,
-      "source_url": "https://www.hellenicparliament.gr/...",
+      "source_url": "https://www.hellenicparliament.gr/...?law_id=...",
       "raw_text": "..."
     }
   ]
@@ -270,13 +273,22 @@ output/
    - `Using 2 known section URL(s) to crawl`
    - Per-section item counts (e.g. `Extracted 25 item(s) from "Κατατεθέντα (Σχέδιο νόμου)"`)
    - `Total unique items: N` where N > 0
-2. Open `output/parliament-bills.json` and verify bill titles, dates, and `source_url` values look correct.
+   - `Enriching N item(s) via detail pages…` followed by per-item `→ Detail` log lines
+   - `Detail enrichment complete.`
+2. Open `output/parliament-bills.json` and verify:
+   - `external_id` values start with `hp-bill-` followed by a UUID
+   - Bill titles are full (not truncated with `...`)
+   - `category` is an English code (e.g. `health`, `energy`, `economy`) where the ministry is recognisable, and `null` otherwise
+   - `source_url` values are valid Hellenic Parliament URLs containing `law_id=`
 3. If the Parliament website changes its URL structure, update `KNOWN_SECTIONS` in `src/adapters/parliamentBills.js`.
 4. Run `npm test` to verify all unit tests pass.
 
 ### Notes
 
 - The scraper uses only Node.js built-in modules (`https`, `fs`) and the already-bundled `node-html-parser` — no extra dependencies needed.
-- Output is de-duplicated by `external_id`.
-- Fields that cannot be reliably extracted from the page are left as `null` (e.g. `summary_official`, `category`, `meeting_date`, `vote_date`).
+- Output is de-duplicated by `external_id` (stable `hp-bill-<law_id>` when available).
+- `external_id` uses the UUID from the `law_id` URL parameter for stability; it falls back to a title slug only when no `law_id` is present.
+- `category` is inferred conservatively from the ministry/topic text. Supported codes: `health`, `energy`, `economy`, `education`, `agriculture`, `justice`, `foreign_affairs`, `interior`, `labour`, `infrastructure`, `defence`, `tourism`, `digital`, `social`. Unrecognised text leaves `category` as `null`.
+- Detail-page fetches add a 200 ms pause between requests to avoid overwhelming the Parliament server.
+- Fields that cannot be reliably extracted are left as `null` (e.g. `meeting_date`, `vote_date`).
 - AI analysis of items is a separate step handled by the Appofa server and is **not** included here.

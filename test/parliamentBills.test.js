@@ -10,6 +10,8 @@ const {
   deriveExternalId,
   normalizeText,
   resolveUrl,
+  lawIdFromUrl,
+  inferCategory,
   extractItemsFromRoot,
   KNOWN_SECTIONS,
 } = require('../src/adapters/parliamentBills');
@@ -220,7 +222,7 @@ test('extractItemsFromRoot — extracts items from a legislationTable structure'
             <td>ΔΙΕΚΠ/ΥΠ/123</td>
             <td>06/05/2026</td>
             <td><a href="/Nomothetiko-Ergo/Details?id=1">Νομοσχέδιο για την ανάπτυξη τεχνολογίας</a></td>
-            <td>Υπ. Ανάπτυξης</td>
+            <td>Υπ. Υγείας</td>
             <td>Κατατεθέν</td>
           </tr>
           <tr>
@@ -243,7 +245,7 @@ test('extractItemsFromRoot — extracts items from a legislationTable structure'
   assert.ok(first.title_official.includes('τεχνολογίας'), 'title should come from title column anchor');
   assert.equal(first.published_at, '2026-05-06', 'date should be parsed from date column');
   assert.equal(first.status, 'submitted', 'status should be derived from section label');
-  assert.equal(first.category, 'Υπ. Ανάπτυξης', 'category should come from ministry column');
+  assert.equal(first.category, 'health', 'category should be inferred from ministry column');
   assert.ok(first.source_url.startsWith('https://'), 'source_url must be absolute');
 });
 
@@ -265,4 +267,99 @@ test('extractItemsFromRoot — legislationTable category is null when fewer than
   const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr', null);
   assert.ok(items.length >= 1, `Expected ≥1 item, got ${items.length}`);
   assert.equal(items[0].category, null, 'category should be null for 3-column table');
+});
+
+// ── lawIdFromUrl ──────────────────────────────────────────────────────────
+
+test('lawIdFromUrl — extracts law_id from a full parliament URL', () => {
+  const url = 'https://www.hellenicparliament.gr/Nomothetiko-Ergo/Katatethenta-Nomosxedia?law_id=cf7398d9-168a-4134-85e4-b4420006f9f9';
+  assert.equal(lawIdFromUrl(url), 'cf7398d9-168a-4134-85e4-b4420006f9f9');
+});
+
+test('lawIdFromUrl — returns null when no law_id param present', () => {
+  assert.equal(lawIdFromUrl('https://www.hellenicparliament.gr/Nomothetiko-Ergo/Details?id=1'), null);
+  assert.equal(lawIdFromUrl('https://www.hellenicparliament.gr/foo'), null);
+});
+
+test('lawIdFromUrl — returns null for null/empty input', () => {
+  assert.equal(lawIdFromUrl(null), null);
+  assert.equal(lawIdFromUrl(''), null);
+});
+
+test('lawIdFromUrl — returns null for an invalid URL', () => {
+  assert.equal(lawIdFromUrl('not-a-url'), null);
+});
+
+// ── inferCategory ─────────────────────────────────────────────────────────
+
+test('inferCategory — maps health ministry', () => {
+  assert.equal(inferCategory('Υπ. Υγείας'), 'health');
+  assert.equal(inferCategory('Υπουργείο Υγείας'), 'health');
+});
+
+test('inferCategory — maps energy ministry', () => {
+  assert.equal(inferCategory('Περιβάλλοντος και Ενέργειας'), 'energy');
+  assert.equal(inferCategory('Εκσυγχρονισμός ανανεώσιμων πηγών ενέργειας'), 'energy');
+});
+
+test('inferCategory — maps economy ministry', () => {
+  assert.equal(inferCategory('Εθνικής Οικονομίας και Οικονομικών'), 'economy');
+  assert.equal(inferCategory('Υπουργείο Οικονομικών'), 'economy');
+});
+
+test('inferCategory — maps education ministry', () => {
+  assert.equal(inferCategory('Παιδείας, Θρησκευμάτων και Αθλητισμού'), 'education');
+  assert.equal(inferCategory('Υπ. Παιδείας'), 'education');
+});
+
+test('inferCategory — maps agriculture ministry', () => {
+  assert.equal(inferCategory('Αγροτικής Ανάπτυξης και Τροφίμων'), 'agriculture');
+});
+
+test('inferCategory — maps interior ministry', () => {
+  assert.equal(inferCategory('Εσωτερικών'), 'interior');
+});
+
+test('inferCategory — maps social ministry', () => {
+  assert.equal(inferCategory('Κοινωνικής Συνοχής και Οικογένειας'), 'social');
+});
+
+test('inferCategory — returns null for unrecognised text', () => {
+  assert.equal(inferCategory('Υπ. Ανάπτυξης'), null);
+  assert.equal(inferCategory('Κάτι άλλο'), null);
+  assert.equal(inferCategory(''), null);
+  assert.equal(inferCategory(null), null);
+});
+
+// ── extractItemsFromRoot — law_id external_id ─────────────────────────────
+
+test('extractItemsFromRoot — uses hp-bill-<law_id> when law_id is present in href', () => {
+  const html = `
+    <html><body>
+      <ul>
+        <li><a href="/Nomothetiko-Ergo/Katatethenta-Nomosxedia?law_id=abc-123-def">Νόμος για ανανεώσιμες πηγές ενέργειας ΑΠΕ</a> 30/04/2026</li>
+      </ul>
+    </body></html>`;
+
+  const root = parse(html);
+  const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr/Nomothetiko-Ergo', null);
+
+  assert.ok(items.length >= 1, `Expected ≥1 item, got ${items.length}`);
+  assert.equal(items[0].external_id, 'hp-bill-abc-123-def', 'external_id should use hp-bill-<law_id>');
+});
+
+test('extractItemsFromRoot — falls back to slug external_id when no law_id', () => {
+  const html = `
+    <html><body>
+      <ul>
+        <li><a href="/Nomothetiko-Ergo/Details?id=99">Νόμος για ανανεώσιμες πηγές ενέργειας ΑΠΕ</a> 30/04/2026</li>
+      </ul>
+    </body></html>`;
+
+  const root = parse(html);
+  const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr/Nomothetiko-Ergo', null);
+
+  assert.ok(items.length >= 1, `Expected ≥1 item, got ${items.length}`);
+  assert.ok(!items[0].external_id.startsWith('hp-bill-'), 'external_id should be a slug when no law_id');
+  assert.ok(items[0].external_id.length > 0, 'external_id must not be empty');
 });

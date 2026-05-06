@@ -41,6 +41,27 @@ const STATUS_MAP = [
 ];
 
 /**
+ * Maps Greek ministry/topic text fragments to stable English category codes.
+ * Only patterns that are unambiguous are listed; anything uncertain is left as null.
+ */
+const CATEGORY_MAP = [
+  { pattern: /υγεί/i,                                   code: 'health' },
+  { pattern: /περιβάλλον|ενέργει|ανανεώσιμ/i,          code: 'energy' },
+  { pattern: /εθν.*οικονομ|οικονομικ/i,                 code: 'economy' },
+  { pattern: /παιδεί|εκπαίδευσ|θρησκευμ|αθλητισμ/i,    code: 'education' },
+  { pattern: /αγροτ|γεωργ|τροφίμ/i,                    code: 'agriculture' },
+  { pattern: /δικαιοσύν/i,                               code: 'justice' },
+  { pattern: /εξωτερικ/i,                                code: 'foreign_affairs' },
+  { pattern: /εσωτερικ/i,                                code: 'interior' },
+  { pattern: /εργασί|ασφαλιστ/i,                        code: 'labour' },
+  { pattern: /υποδομ|μεταφορ/i,                         code: 'infrastructure' },
+  { pattern: /άμυν/i,                                    code: 'defence' },
+  { pattern: /τουρισμ/i,                                 code: 'tourism' },
+  { pattern: /ψηφιακ|τεχνολογ/i,                        code: 'digital' },
+  { pattern: /κοινωνικ|οικογέν/i,                       code: 'social' },
+];
+
+/**
  * Resolves a potentially relative URL against the base URL.
  *
  * @param {string} href
@@ -117,6 +138,62 @@ function normalizeText(text) {
 }
 
 /**
+ * Infers a stable English category code from Greek ministry/topic text.
+ * Returns null when no confident match is found.
+ *
+ * @param {string} text
+ * @returns {string|null}
+ */
+function inferCategory(text) {
+  if (!text) return null;
+  for (const { pattern, code } of CATEGORY_MAP) {
+    if (pattern.test(text)) return code;
+  }
+  return null;
+}
+
+/**
+ * Extracts the `law_id` query parameter from a Hellenic Parliament URL.
+ *
+ * @param {string} url
+ * @returns {string|null}
+ */
+function lawIdFromUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.searchParams.get('law_id') || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds a stable external ID for a bill.
+ * Prefers `hp-bill-<law_id>` extracted from the source URL;
+ * falls back to a title-derived slug when no law_id is present.
+ *
+ * @param {string} sourceUrl
+ * @param {string} titleText
+ * @param {string|null} publishedAt
+ * @returns {string}
+ */
+function buildExternalId(sourceUrl, titleText, publishedAt) {
+  const lawId = lawIdFromUrl(sourceUrl);
+  return lawId ? `hp-bill-${lawId}` : deriveExternalId(titleText, publishedAt);
+}
+
+/** Minimum number of characters a candidate summary must have to be accepted. */
+const MIN_SUMMARY_LENGTH = 30;
+
+/** Number of characters taken from the current title to use as a matching prefix
+ *  when searching for a fuller version on the detail page. */
+const TITLE_PREFIX_LENGTH = 25;
+
+/** Delay in milliseconds between consecutive detail-page HTTP requests. */
+const DETAIL_PAGE_FETCH_DELAY_MS = 200;
+
+/**
  * Extracts bill items from a parsed HTML root node.
  * Handles common Hellenic Parliament page structures:
  *  - table rows with date + title columns
@@ -169,15 +246,16 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
     const publishedAt = parseDate(dateMatch ? dateMatch[0] : null);
 
     // Ministry appears in cells[3] for a 5-column table
-    const category =
+    const ministryText =
       cells.length >= 5 ? normalizeText(cells[3].text) || null : null;
+    const category = inferCategory(ministryText || rawText);
 
     // Status is last column or supplied by section label
     const statusCellText = normalizeText(cells[cells.length - 1].text);
     const status = mapStatus(sectionLabel || statusCellText);
     const statusLabelEl = sectionLabel || statusCellText || null;
 
-    const id = deriveExternalId(titleText, publishedAt);
+    const id = buildExternalId(sourceUrl, titleText, publishedAt);
     if (seen.has(id)) continue;
     seen.add(id);
 
@@ -220,7 +298,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
     const statusLabelEl = normalizeText(cells[cells.length - 1].text);
     const status = mapStatus(sectionLabel || statusLabelEl);
 
-    const id = deriveExternalId(titleText, publishedAt);
+    const id = buildExternalId(sourceUrl, titleText, publishedAt);
     if (seen.has(id)) continue;
     seen.add(id);
 
@@ -230,7 +308,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
       summary_official: null,
       status,
       status_label_el: sectionLabel || statusLabelEl || null,
-      category: null,
+      category: inferCategory(rawText),
       published_at: publishedAt,
       meeting_date: null,
       vote_date: null,
@@ -258,7 +336,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
 
       const status = mapStatus(sectionLabel || rawText);
 
-      const id = deriveExternalId(titleText, publishedAt);
+      const id = buildExternalId(sourceUrl, titleText, publishedAt);
       if (seen.has(id)) continue;
       seen.add(id);
 
@@ -268,7 +346,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
         summary_official: null,
         status,
         status_label_el: sectionLabel || null,
-        category: null,
+        category: inferCategory(rawText),
         published_at: publishedAt,
         meeting_date: null,
         vote_date: null,
@@ -295,7 +373,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
 
       const status = mapStatus(sectionLabel || rawText);
 
-      const id = deriveExternalId(titleText, publishedAt);
+      const id = buildExternalId(sourceUrl, titleText, publishedAt);
       if (seen.has(id)) continue;
       seen.add(id);
 
@@ -305,7 +383,7 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
         summary_official: null,
         status,
         status_label_el: sectionLabel || null,
-        category: null,
+        category: inferCategory(rawText),
         published_at: publishedAt,
         meeting_date: null,
         vote_date: null,
@@ -385,6 +463,100 @@ function fetchHtml(url, redirectsLeft = 3) {
 }
 
 /**
+ * Attempts to enrich a bill item by fetching its detail page.
+ * Looks for a fuller (non-truncated) title and an official summary.
+ * Returns the original item unchanged if the fetch fails or yields nothing new.
+ *
+ * @param {object} item
+ * @returns {Promise<object>}
+ */
+async function fetchAndEnrichItem(item) {
+  if (!item.source_url) return item;
+
+  logger.info(`  → Detail [${item.external_id}]: ${item.source_url}`);
+
+  let html;
+  try {
+    html = await fetchHtml(item.source_url);
+  } catch (err) {
+    logger.warn(`  ✗ Detail fetch failed [${item.external_id}]: ${err.message}`);
+    return item;
+  }
+
+  logger.debug(`  ✓ Detail page fetched (${html.length} bytes) for [${item.external_id}]`);
+
+  const root = parse(html);
+
+  // Try to find the full (non-truncated) title.
+  // Strategy: scan candidate elements for text that starts with the same
+  // prefix as our current title but is longer and not itself truncated.
+  const currentTitle = item.title_official;
+  const titlePrefix = currentTitle.replace(/\.\.\.$/, '').trim().slice(0, TITLE_PREFIX_LENGTH).toLowerCase();
+
+  let fullTitle = null;
+  const titleCandidateSelectors = [
+    '.legislationTitle',
+    '.nomosTitle',
+    '.law-title',
+    'h1',
+    'h2',
+    'h3',
+    'td',
+  ];
+
+  for (const sel of titleCandidateSelectors) {
+    for (const el of root.querySelectorAll(sel)) {
+      const t = normalizeText(el.text);
+      if (
+        t &&
+        t.length > currentTitle.length &&
+        !t.endsWith('...') &&
+        t.toLowerCase().startsWith(titlePrefix)
+      ) {
+        fullTitle = t;
+        break;
+      }
+    }
+    if (fullTitle) break;
+  }
+
+  // Try to find a summary/description on the detail page.
+  const summaryCandidates = [
+    root.querySelector('.description'),
+    root.querySelector('.summary'),
+    root.querySelector('[class*="description"]'),
+    root.querySelector('[class*="summary"]'),
+    root.querySelector('.abstractText'),
+    root.querySelector('.billSummary'),
+  ].filter(Boolean);
+
+  let summary = null;
+  for (const el of summaryCandidates) {
+    const t = normalizeText(el.text);
+    if (t && t.length > MIN_SUMMARY_LENGTH) {
+      summary = t;
+      break;
+    }
+  }
+
+  if (fullTitle) {
+    logger.info(`  ✓ Full title found [${item.external_id}]: "${fullTitle.slice(0, 80)}"`);
+  }
+  if (summary) {
+    logger.info(`  ✓ Summary found [${item.external_id}]: "${summary.slice(0, 80)}"`);
+  }
+  if (!fullTitle && !summary) {
+    logger.debug(`  – No enrichment found for [${item.external_id}]`);
+  }
+
+  return {
+    ...item,
+    title_official: fullTitle || item.title_official,
+    summary_official: summary || item.summary_official,
+  };
+}
+
+/**
  * Scrapes the Hellenic Parliament legislative work pages and returns a
  * normalised JSON payload.
  *
@@ -428,11 +600,24 @@ async function scrapeParliamentBills() {
 
   logger.info(`Total unique items: ${uniqueItems.length}`);
 
+  // Enrich each item by fetching its detail page (full title, summary).
+  logger.info(`Enriching ${uniqueItems.length} item(s) via detail pages…`);
+  const enrichedItems = [];
+  for (let i = 0; i < uniqueItems.length; i++) {
+    if (i > 0) {
+      // Brief pause between requests to be polite to the server.
+      await new Promise((resolve) => setTimeout(resolve, DETAIL_PAGE_FETCH_DELAY_MS));
+    }
+    const enriched = await fetchAndEnrichItem(uniqueItems[i]);
+    enrichedItems.push(enriched);
+  }
+  logger.info(`Detail enrichment complete.`);
+
   return {
     source_name: 'hellenic-parliament-bills',
     source_type: 'bill',
     scraped_at: new Date().toISOString(),
-    items: uniqueItems,
+    items: enrichedItems,
   };
 }
 
@@ -442,8 +627,11 @@ module.exports = {
   parseDate,
   mapStatus,
   deriveExternalId,
+  buildExternalId,
   normalizeText,
   resolveUrl,
+  lawIdFromUrl,
+  inferCategory,
   extractItemsFromRoot,
   KNOWN_SECTIONS,
 };

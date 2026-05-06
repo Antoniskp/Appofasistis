@@ -218,6 +218,15 @@ npm run scrape:parliament
 
 Output is saved to `output/parliament-bills.json`.
 
+### What the scraper does
+
+1. Loads a fixed list of known Hellenic Parliament section URLs (submitted bills and passed bills).
+2. Fetches each section page over HTTPS and parses the static HTML.
+3. Extracts bill rows from parliament-style `<table>` elements.
+4. Normalises each item to the output schema and writes `output/parliament-bills.json`.
+
+> **Why fixed URLs?**  The landing page (`/Nomothetiko-Ergo`) renders its navigation menu via JavaScript.  A server-side HTML parser cannot discover the section links dynamically, so they are hard-coded in `KNOWN_SECTIONS` inside `src/adapters/parliamentBills.js`.  If a section URL changes, update that constant.
+
 ### Output schema
 
 ```json
@@ -255,11 +264,15 @@ output/
   parliament-bills.json  # generated locally (not committed to Git)
 ```
 
-### Manual testing
+### Manual testing steps
 
-1. Run `npm run scrape:parliament` — check that the terminal shows item counts and no errors.
-2. Open `output/parliament-bills.json` and verify that bill titles, dates, and `source_url` values look correct.
-3. If the page HTML structure changes, update the selectors in `src/adapters/parliamentBills.js`.
+1. Run `npm run scrape:parliament` — the terminal should show:
+   - `Using 2 known section URL(s) to crawl`
+   - Per-section item counts (e.g. `Extracted 25 item(s) from "Κατατεθέντα (Σχέδιο νόμου)"`)
+   - `Total unique items: N` where N > 0
+2. Open `output/parliament-bills.json` and verify bill titles, dates, and `source_url` values look correct.
+3. If the Parliament website changes its URL structure, update `KNOWN_SECTIONS` in `src/adapters/parliamentBills.js`.
+4. Run `npm test` to verify all unit tests pass.
 
 ### Notes
 

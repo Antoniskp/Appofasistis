@@ -94,9 +94,12 @@ Copy `.env.example` to `.env` and set the following variables:
 │   ├── logger.js             # Timestamped logger with emoji prefixes
 │   ├── config.js             # Loads .env, validates required config
 │   ├── adapters/
-│   │   └── parliamentBills.js  # Fetch + parse Hellenic Parliament HTML → normalised items
+│   │   └── parliamentBills.js  # Fetch + parse Hellenic Parliament HTML → normalised items, validation
+│   ├── lib/
+│   │   ├── snapshotDiff.js   # Snapshot save/load and diff computation
+│   │   └── uploadPayload.js  # Build upload-ready payload from validated items
 │   ├── jobs/
-│   │   └── runParliamentBills.js  # CLI scraper job — saves output/parliament-bills.json
+│   │   └── runParliamentBills.js  # CLI scraper job — scrape, validate, diff, write all output files
 │   └── tasks/
 │       ├── index.js          # Task registry — maps task type strings to handlers
 │       ├── linkPreview.js    # Fetches URL, parses OpenGraph meta tags
@@ -105,9 +108,13 @@ Copy `.env.example` to `.env` and set the following variables:
 │       └── textAnalysis.js   # Word count, reading time, keyword extraction
 ├── output/
 │   └── parliament-bills.json  # Generated locally by scrape:parliament (not in Git)
+│   └── parliament-bills-snapshot.json  # Snapshot for diffing (not in Git)
+│   └── parliament-bills-upload.json    # Upload-ready payload (not in Git)
+│   └── parliament-bills-diff.json      # Change report (not in Git)
 └── test/
     ├── linkPreview.test.js
     ├── parliamentBills.test.js
+    ├── snapshotDiff.test.js
     ├── pollStats.test.js
     ├── leaderboard.test.js
     └── textAnalysis.test.js
@@ -216,21 +223,45 @@ npm install
 npm run scrape:parliament
 ```
 
-Output is saved to `output/parliament-bills.json`.
+### Generated output files
+
+| File | Description |
+|---|---|
+| `output/parliament-bills.json` | Full normalised payload — all scraped items with all fields |
+| `output/parliament-bills-snapshot.json` | Snapshot used as the baseline for the next diff run |
+| `output/parliament-bills-upload.json` | Upload-ready payload for downstream ingestion by appofasi.gr (valid items only, no `raw_text`) |
+| `output/parliament-bills-diff.json` | Machine-readable change report: new, changed, and removed item IDs vs the previous run |
+
+All four files are local only (listed in `.gitignore`) and are regenerated on every run.
 
 ### What the scraper does
 
-1. Loads a fixed list of known Hellenic Parliament section URLs (submitted bills and passed bills).
+1. Loads a fixed list of known Hellenic Parliament section URLs covering the full legislative lifecycle.
 2. Fetches each section page over HTTPS and parses the static HTML.
 3. Extracts bill rows from parliament-style `<table>` elements.
 4. For each extracted bill, fetches its detail page (`source_url` with `law_id` filter) to obtain the full (non-truncated) official title and any available summary.
 5. Derives a stable `external_id` of the form `hp-bill-<law_id>` from the URL, falling back to a title slug if no `law_id` is present.
 6. Infers a conservative English `category` code from the ministry/topic text when a confident match exists.
 7. Normalises each item to the output schema and writes `output/parliament-bills.json`.
+8. **Validates** each item against the schema — logs warnings for any malformed items.
+9. **Diffs** against the previous snapshot to detect new, changed, and removed items — writes `output/parliament-bills-diff.json`.
+10. Saves the current run as the new snapshot (`output/parliament-bills-snapshot.json`).
+11. Writes an **upload-ready payload** (`output/parliament-bills-upload.json`) containing only validated items and aggregate statistics.
 
 > **Why fixed URLs?**  The landing page (`/Nomothetiko-Ergo`) renders its navigation menu via JavaScript.  A server-side HTML parser cannot discover the section links dynamically, so they are hard-coded in `KNOWN_SECTIONS` inside `src/adapters/parliamentBills.js`.  If a section URL changes, update that constant.
 
+### Section coverage
+
+| Section | URL path | Status code |
+|---|---|---|
+| Κατατεθέντα (Σχέδιο νόμου) | `/Nomothetiko-Ergo/Katatethenta-Nomosxedia` | `submitted` |
+| Επεξεργασία Νομοσχεδίων από Επιτροπές | `/Nomothetiko-Ergo/Epexergasia-Nomosxedion-apo-Epitropes` | `in_committee` |
+| Ψηφισθέντα Νομοσχέδια | `/Nomothetiko-Ergo/Psifisthenta-Nomoschedia` | `passed` |
+| Νόμοι (Ολοκληρωμένη νομοθετική διαδικασία) | `/Nomothetiko-Ergo/Nomoi` | `completed` |
+
 ### Output schema
+
+**`output/parliament-bills.json`** (normalised payload):
 
 ```json
 {
@@ -255,33 +286,80 @@ Output is saved to `output/parliament-bills.json`.
 }
 ```
 
+**`output/parliament-bills-upload.json`** (upload-ready payload):
+
+```json
+{
+  "schema_version": "1",
+  "generated_at": "2026-05-06T12:00:00.000Z",
+  "source": "hellenic-parliament-bills",
+  "stats": {
+    "total": 12,
+    "by_status": { "submitted": 10, "passed": 2 },
+    "by_category": { "health": 3, "economy": 2, "uncategorised": 7 }
+  },
+  "items": [ ... ]
+}
+```
+
+**`output/parliament-bills-diff.json`** (change report):
+
+```json
+{
+  "generated_at": "2026-05-06T12:00:00.000Z",
+  "new_count": 1,
+  "changed_count": 0,
+  "removed_count": 0,
+  "new_items": ["hp-bill-<uuid>"],
+  "changed_items": [],
+  "removed_items": []
+}
+```
+
 ### File structure
 
 ```
 src/
   adapters/
-    parliamentBills.js   # fetch + parse Hellenic Parliament HTML → normalised items
+    parliamentBills.js         # fetch + parse Hellenic Parliament HTML → normalised items, validation
+  lib/
+    snapshotDiff.js            # snapshot save/load and diff computation
+    uploadPayload.js           # build upload-ready payload from validated items
   jobs/
-    runParliamentBills.js # CLI entry point — runs scraper and writes JSON file
+    runParliamentBills.js      # CLI entry point — scrape, validate, diff, write all output files
 output/
-  parliament-bills.json  # generated locally (not committed to Git)
+  parliament-bills.json        # full normalised output (not committed to Git)
+  parliament-bills-snapshot.json  # snapshot for diffing (not committed to Git)
+  parliament-bills-upload.json    # upload-ready payload (not committed to Git)
+  parliament-bills-diff.json      # change report (not committed to Git)
+test/
+  parliamentBills.test.js      # unit tests for adapter, validation, status/category mapping
+  snapshotDiff.test.js         # unit tests for snapshotDiff and uploadPayload utilities
 ```
 
 ### Manual testing steps
 
 1. Run `npm run scrape:parliament` — the terminal should show:
-   - `Using 2 known section URL(s) to crawl`
+   - `Using 4 known section URL(s) to crawl`
    - Per-section item counts (e.g. `Extracted 25 item(s) from "Κατατεθέντα (Σχέδιο νόμου)"`)
    - `Total unique items: N` where N > 0
    - `Enriching N item(s) via detail pages…` followed by per-item `→ Detail` log lines
    - `Detail enrichment complete.`
+   - `Validation: N valid, 0 invalid`
+   - `Diff vs previous snapshot: N new, 0 changed, 0 removed`
+   - Four output file paths saved
+   - `Summary: scraped=N, valid=N, invalid=0, new=N, changed=0`
 2. Open `output/parliament-bills.json` and verify:
    - `external_id` values start with `hp-bill-` followed by a UUID
    - Bill titles are full (not truncated with `...`)
    - `category` is an English code (e.g. `health`, `energy`, `economy`) where the ministry is recognisable, and `null` otherwise
    - `source_url` values are valid Hellenic Parliament URLs containing `law_id=`
-3. If the Parliament website changes its URL structure, update `KNOWN_SECTIONS` in `src/adapters/parliamentBills.js`.
-4. Run `npm test` to verify all unit tests pass.
+3. Open `output/parliament-bills-upload.json` and verify:
+   - `stats.total` matches the number of valid items
+   - Items do **not** contain a `raw_text` field
+4. Run `npm run scrape:parliament` a second time — `output/parliament-bills-diff.json` should now show `0 new, 0 changed, 0 removed` (no real changes between two back-to-back runs).
+5. If the Parliament website changes its URL structure, update `KNOWN_SECTIONS` in `src/adapters/parliamentBills.js`.
+6. Run `npm test` to verify all unit tests pass.
 
 ### Notes
 
@@ -291,4 +369,6 @@ output/
 - `category` is inferred conservatively from the ministry/topic text. Supported codes: `health`, `energy`, `economy`, `education`, `agriculture`, `justice`, `foreign_affairs`, `interior`, `labour`, `infrastructure`, `defence`, `tourism`, `digital`, `social`. Unrecognised text leaves `category` as `null`.
 - Detail-page fetches add a 200 ms pause between requests to avoid overwhelming the Parliament server.
 - Fields that cannot be reliably extracted are left as `null` (e.g. `meeting_date`, `vote_date`).
+- If a section page is unreachable (e.g. the committee page is temporarily offline), the scraper logs a warning and continues with the other sections.
+- The upload-ready payload (`parliament-bills-upload.json`) contains only items that pass schema validation; malformed items are excluded and their errors are logged during the run.
 - AI analysis of items is a separate step handled by the Appofa server and is **not** included here.

@@ -16,6 +16,12 @@ const REQUEST_TIMEOUT_MS = 15000;
  * server-side-only HTML parsing cannot discover these links dynamically.  We
  * therefore hard-code the well-known section addresses here.  If the Parliament
  * website moves a section, update this list.
+ *
+ * Status mapping:
+ *   Κατατεθέντα (Σχέδιο νόμου)              → submitted
+ *   Επεξεργασία Νομοσχεδίων από Επιτροπές   → in_committee
+ *   Ψηφισθέντα Νομοσχέδια                   → passed
+ *   Νόμοι (Ολοκληρωμένη νομοθετική διαδικασία) → completed
  */
 const KNOWN_SECTIONS = [
   {
@@ -23,8 +29,16 @@ const KNOWN_SECTIONS = [
     label: 'Κατατεθέντα (Σχέδιο νόμου)',
   },
   {
+    url: `${BASE_URL}/Nomothetiko-Ergo/Epexergasia-Nomosxedion-apo-Epitropes`,
+    label: 'Επεξεργασία Νομοσχεδίων από Επιτροπές',
+  },
+  {
     url: `${BASE_URL}/Nomothetiko-Ergo/Psifisthenta-Nomoschedia`,
     label: 'Ψηφισθέντα Νομοσχέδια',
+  },
+  {
+    url: `${BASE_URL}/Nomothetiko-Ergo/Nomoi`,
+    label: 'Νόμοι (Ολοκληρωμένη νομοθετική διαδικασία)',
   },
 ];
 
@@ -35,7 +49,7 @@ const STATUS_MAP = [
   { pattern: /κατατεθ/i, code: 'submitted' },
   { pattern: /επεξεργασ|επιτροπ/i, code: 'in_committee' },
   { pattern: /ψηφισθ/i, code: 'passed' },
-  { pattern: /νόμος|ολοκλήρ|εψηφίσθη/i, code: 'completed' },
+  { pattern: /νόμος|νόμοι|ολοκλήρ|ολοκληρ|εψηφίσθη/i, code: 'completed' },
   { pattern: /διαβούλευση|consultation/i, code: 'consultation' },
   { pattern: /ημερήσια|agenda/i, code: 'scheduled' },
 ];
@@ -192,6 +206,100 @@ const TITLE_PREFIX_LENGTH = 25;
 
 /** Delay in milliseconds between consecutive detail-page HTTP requests. */
 const DETAIL_PAGE_FETCH_DELAY_MS = 200;
+
+/** Valid canonical status codes produced by mapStatus(). */
+const VALID_STATUSES = new Set([
+  'submitted',
+  'in_committee',
+  'passed',
+  'completed',
+  'consultation',
+  'scheduled',
+  'unknown',
+]);
+
+/** Valid canonical category codes produced by inferCategory(). */
+const VALID_CATEGORIES = new Set([
+  'health',
+  'energy',
+  'economy',
+  'education',
+  'agriculture',
+  'justice',
+  'foreign_affairs',
+  'interior',
+  'labour',
+  'infrastructure',
+  'defence',
+  'tourism',
+  'digital',
+  'social',
+]);
+
+/**
+ * Validates a single normalised item against the expected output schema.
+ * Returns an array of human-readable error strings; an empty array means valid.
+ *
+ * @param {object} item
+ * @returns {string[]}
+ */
+function validateItem(item) {
+  const errors = [];
+  if (!item || typeof item !== 'object') {
+    return ['item must be an object'];
+  }
+
+  if (typeof item.external_id !== 'string' || item.external_id.trim() === '') {
+    errors.push('external_id must be a non-empty string');
+  }
+  if (typeof item.title_official !== 'string' || item.title_official.trim() === '') {
+    errors.push('title_official must be a non-empty string');
+  }
+  if (item.summary_official !== null && typeof item.summary_official !== 'string') {
+    errors.push('summary_official must be a string or null');
+  }
+  if (!VALID_STATUSES.has(item.status)) {
+    errors.push(`status "${item.status}" is not a recognised value`);
+  }
+  if (item.category !== null && !VALID_CATEGORIES.has(item.category)) {
+    errors.push(`category "${item.category}" is not a recognised value`);
+  }
+  if (item.published_at !== null && !/^\d{4}-\d{2}-\d{2}$/.test(item.published_at)) {
+    errors.push(`published_at "${item.published_at}" must be YYYY-MM-DD or null`);
+  }
+  if (item.meeting_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(item.meeting_date)) {
+    errors.push(`meeting_date "${item.meeting_date}" must be YYYY-MM-DD or null`);
+  }
+  if (item.vote_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(item.vote_date)) {
+    errors.push(`vote_date "${item.vote_date}" must be YYYY-MM-DD or null`);
+  }
+  if (typeof item.source_url !== 'string' || !item.source_url.startsWith('https://')) {
+    errors.push('source_url must be an https:// string');
+  }
+
+  return errors;
+}
+
+/**
+ * Validates all items in a scraper result payload.
+ * Returns an object with `valid` items and `invalid` items (each with attached errors).
+ *
+ * @param {object[]} items
+ * @returns {{ valid: object[], invalid: Array<{ item: object, errors: string[] }> }}
+ */
+function validateItems(items) {
+  const valid = [];
+  const invalid = [];
+  for (const item of items) {
+    const errors = validateItem(item);
+    if (errors.length === 0) {
+      valid.push(item);
+    } else {
+      invalid.push({ item, errors });
+    }
+  }
+  return { valid, invalid };
+}
 
 /**
  * Extracts bill items from a parsed HTML root node.
@@ -633,5 +741,9 @@ module.exports = {
   lawIdFromUrl,
   inferCategory,
   extractItemsFromRoot,
+  validateItem,
+  validateItems,
   KNOWN_SECTIONS,
+  VALID_STATUSES,
+  VALID_CATEGORIES,
 };

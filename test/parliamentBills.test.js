@@ -13,7 +13,11 @@ const {
   lawIdFromUrl,
   inferCategory,
   extractItemsFromRoot,
+  validateItem,
+  validateItems,
   KNOWN_SECTIONS,
+  VALID_STATUSES,
+  VALID_CATEGORIES,
 } = require('../src/adapters/parliamentBills');
 
 // ── parseDate ──────────────────────────────────────────────────────────────
@@ -202,10 +206,26 @@ test('KNOWN_SECTIONS — each entry has a url and label', () => {
   }
 });
 
-test('KNOWN_SECTIONS — contains both submitted and passed sections', () => {
+test('KNOWN_SECTIONS — contains submitted, in_committee, passed, and completed sections', () => {
   const labels = KNOWN_SECTIONS.map((s) => s.label);
   assert.ok(labels.some((l) => /κατατεθ/i.test(l)), 'Should include a submitted (Κατατεθέντα) section');
+  assert.ok(labels.some((l) => /επιτροπ/i.test(l)), 'Should include an in_committee (Επιτροπές) section');
   assert.ok(labels.some((l) => /ψηφισθ/i.test(l)), 'Should include a passed (Ψηφισθέντα) section');
+  assert.ok(labels.some((l) => /νόμοι|ολοκλήρ|ολοκληρ/i.test(l)), 'Should include a completed (Νόμοι) section');
+});
+
+test('KNOWN_SECTIONS — section labels map to expected status codes', () => {
+  const expectedMappings = [
+    { labelFragment: /κατατεθ/i, expectedStatus: 'submitted' },
+    { labelFragment: /επιτροπ/i, expectedStatus: 'in_committee' },
+    { labelFragment: /ψηφισθ/i, expectedStatus: 'passed' },
+    { labelFragment: /νόμοι/i, expectedStatus: 'completed' },
+  ];
+  for (const { labelFragment, expectedStatus } of expectedMappings) {
+    const section = KNOWN_SECTIONS.find((s) => labelFragment.test(s.label));
+    assert.ok(section, `No section found matching ${labelFragment}`);
+    assert.equal(mapStatus(section.label), expectedStatus, `Section "${section.label}" should map to ${expectedStatus}`);
+  }
 });
 
 // ── extractItemsFromRoot — legislationTable ───────────────────────────────
@@ -362,4 +382,120 @@ test('extractItemsFromRoot — falls back to slug external_id when no law_id', (
   assert.ok(items.length >= 1, `Expected ≥1 item, got ${items.length}`);
   assert.ok(!items[0].external_id.startsWith('hp-bill-'), 'external_id should be a slug when no law_id');
   assert.ok(items[0].external_id.length > 0, 'external_id must not be empty');
+});
+
+// ── validateItem ──────────────────────────────────────────────────────────
+
+/** Constructs a minimal valid item for testing. */
+function makeValidItem(overrides = {}) {
+  return {
+    external_id: 'hp-bill-cf7398d9-168a-4134-85e4-b4420006f9f9',
+    title_official: 'Σύσταση Ταμείου Καινοτομίας',
+    summary_official: null,
+    status: 'submitted',
+    status_label_el: 'Κατατεθέντα (Σχέδιο νόμου)',
+    category: 'health',
+    published_at: '2026-05-05',
+    meeting_date: null,
+    vote_date: null,
+    source_url: 'https://www.hellenicparliament.gr/Nomothetiko-Ergo/Katatethenta-Nomosxedia?law_id=cf7398d9-168a-4134-85e4-b4420006f9f9',
+    raw_text: 'some raw text',
+    ...overrides,
+  };
+}
+
+test('validateItem — accepts a fully valid item', () => {
+  const errors = validateItem(makeValidItem());
+  assert.deepEqual(errors, []);
+});
+
+test('validateItem — accepts a valid item with null optional fields', () => {
+  const errors = validateItem(makeValidItem({
+    summary_official: null,
+    category: null,
+    published_at: null,
+    meeting_date: null,
+    vote_date: null,
+  }));
+  assert.deepEqual(errors, []);
+});
+
+test('validateItem — rejects missing external_id', () => {
+  const errors = validateItem(makeValidItem({ external_id: '' }));
+  assert.ok(errors.some((e) => /external_id/.test(e)));
+});
+
+test('validateItem — rejects missing title_official', () => {
+  const errors = validateItem(makeValidItem({ title_official: '' }));
+  assert.ok(errors.some((e) => /title_official/.test(e)));
+});
+
+test('validateItem — rejects unrecognised status', () => {
+  const errors = validateItem(makeValidItem({ status: 'flying' }));
+  assert.ok(errors.some((e) => /status/.test(e)));
+});
+
+test('validateItem — rejects unrecognised category', () => {
+  const errors = validateItem(makeValidItem({ category: 'flying' }));
+  assert.ok(errors.some((e) => /category/.test(e)));
+});
+
+test('validateItem — rejects malformed published_at', () => {
+  const errors = validateItem(makeValidItem({ published_at: '05/05/2026' }));
+  assert.ok(errors.some((e) => /published_at/.test(e)));
+});
+
+test('validateItem — rejects non-https source_url', () => {
+  const errors = validateItem(makeValidItem({ source_url: 'http://example.com' }));
+  assert.ok(errors.some((e) => /source_url/.test(e)));
+});
+
+test('validateItem — rejects non-object input', () => {
+  const errors = validateItem(null);
+  assert.ok(errors.length > 0);
+  const errors2 = validateItem('string');
+  assert.ok(errors2.length > 0);
+});
+
+// ── validateItems ─────────────────────────────────────────────────────────
+
+test('validateItems — separates valid from invalid', () => {
+  const validItem = makeValidItem();
+  const invalidItem = makeValidItem({ external_id: '', status: 'nonsense' });
+  const { valid, invalid } = validateItems([validItem, invalidItem]);
+  assert.equal(valid.length, 1);
+  assert.equal(invalid.length, 1);
+  assert.ok(invalid[0].errors.length >= 2);
+});
+
+test('validateItems — returns all valid for clean list', () => {
+  const items = [makeValidItem(), makeValidItem({ external_id: 'hp-bill-abc', category: null })];
+  const { valid, invalid } = validateItems(items);
+  assert.equal(valid.length, 2);
+  assert.equal(invalid.length, 0);
+});
+
+test('validateItems — returns all invalid for all-broken list', () => {
+  const items = [makeValidItem({ external_id: '' }), makeValidItem({ title_official: '' })];
+  const { valid, invalid } = validateItems(items);
+  assert.equal(valid.length, 0);
+  assert.equal(invalid.length, 2);
+});
+
+// ── VALID_STATUSES / VALID_CATEGORIES ─────────────────────────────────────
+
+test('VALID_STATUSES — is a Set containing canonical status codes', () => {
+  assert.ok(VALID_STATUSES instanceof Set);
+  assert.ok(VALID_STATUSES.has('submitted'));
+  assert.ok(VALID_STATUSES.has('in_committee'));
+  assert.ok(VALID_STATUSES.has('passed'));
+  assert.ok(VALID_STATUSES.has('completed'));
+  assert.ok(VALID_STATUSES.has('unknown'));
+});
+
+test('VALID_CATEGORIES — is a Set containing canonical category codes', () => {
+  assert.ok(VALID_CATEGORIES instanceof Set);
+  assert.ok(VALID_CATEGORIES.has('health'));
+  assert.ok(VALID_CATEGORIES.has('economy'));
+  assert.ok(VALID_CATEGORIES.has('education'));
 });

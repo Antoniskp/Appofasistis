@@ -11,6 +11,7 @@ const {
   normalizeText,
   resolveUrl,
   extractItemsFromRoot,
+  KNOWN_SECTIONS,
 } = require('../src/adapters/parliamentBills');
 
 // ── parseDate ──────────────────────────────────────────────────────────────
@@ -183,4 +184,85 @@ test('extractItemsFromRoot — returns empty array for empty HTML', () => {
   const root = parse('<html><body></body></html>');
   const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr', null);
   assert.deepEqual(items, []);
+});
+
+// ── KNOWN_SECTIONS ────────────────────────────────────────────────────────
+
+test('KNOWN_SECTIONS — is a non-empty array', () => {
+  assert.ok(Array.isArray(KNOWN_SECTIONS), 'KNOWN_SECTIONS must be an array');
+  assert.ok(KNOWN_SECTIONS.length > 0, 'KNOWN_SECTIONS must not be empty');
+});
+
+test('KNOWN_SECTIONS — each entry has a url and label', () => {
+  for (const section of KNOWN_SECTIONS) {
+    assert.ok(typeof section.url === 'string' && section.url.startsWith('https://'), `url must be an https string, got: ${section.url}`);
+    assert.ok(typeof section.label === 'string' && section.label.length > 0, `label must be a non-empty string, got: ${section.label}`);
+  }
+});
+
+test('KNOWN_SECTIONS — contains both submitted and passed sections', () => {
+  const labels = KNOWN_SECTIONS.map((s) => s.label);
+  assert.ok(labels.some((l) => /κατατεθ/i.test(l)), 'Should include a submitted (Κατατεθέντα) section');
+  assert.ok(labels.some((l) => /ψηφισθ/i.test(l)), 'Should include a passed (Ψηφισθέντα) section');
+});
+
+// ── extractItemsFromRoot — legislationTable ───────────────────────────────
+
+test('extractItemsFromRoot — extracts items from a legislationTable structure', () => {
+  const html = `
+    <html><body>
+      <table class="legislationTable">
+        <thead>
+          <tr><th>Αριθ. Πρωτ.</th><th>Ημ/νία Κατάθεσης</th><th>Τίτλος</th><th>Υπουργείο</th><th>Κατάσταση</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ΔΙΕΚΠ/ΥΠ/123</td>
+            <td>06/05/2026</td>
+            <td><a href="/Nomothetiko-Ergo/Details?id=1">Νομοσχέδιο για την ανάπτυξη τεχνολογίας</a></td>
+            <td>Υπ. Ανάπτυξης</td>
+            <td>Κατατεθέν</td>
+          </tr>
+          <tr>
+            <td>ΔΙΕΚΠ/ΥΠ/456</td>
+            <td>04/05/2026</td>
+            <td><a href="/Nomothetiko-Ergo/Details?id=2">Κύρωση διεθνούς σύμβασης περιβαλλοντικής προστασίας</a></td>
+            <td>Υπ. Περιβάλλοντος</td>
+            <td>Επεξεργασία</td>
+          </tr>
+        </tbody>
+      </table>
+    </body></html>`;
+
+  const root = parse(html);
+  const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr/Nomothetiko-Ergo/Katatethenta-Nomosxedia', 'Κατατεθέντα (Σχέδιο νόμου)');
+
+  assert.ok(items.length >= 2, `Expected ≥2 items from legislationTable, got ${items.length}`);
+
+  const first = items[0];
+  assert.ok(first.title_official.includes('τεχνολογίας'), 'title should come from title column anchor');
+  assert.equal(first.published_at, '2026-05-06', 'date should be parsed from date column');
+  assert.equal(first.status, 'submitted', 'status should be derived from section label');
+  assert.equal(first.category, 'Υπ. Ανάπτυξης', 'category should come from ministry column');
+  assert.ok(first.source_url.startsWith('https://'), 'source_url must be absolute');
+});
+
+test('extractItemsFromRoot — legislationTable category is null when fewer than 5 columns', () => {
+  const html = `
+    <html><body>
+      <table class="legislationTable">
+        <tbody>
+          <tr>
+            <td>01/01/2026</td>
+            <td><a href="/item-short">Σύντομος τίτλος για νόμο περί ασφαλείας δεδομένων</a></td>
+            <td>Κατατεθέν</td>
+          </tr>
+        </tbody>
+      </table>
+    </body></html>`;
+
+  const root = parse(html);
+  const items = extractItemsFromRoot(root, 'https://www.hellenicparliament.gr', null);
+  assert.ok(items.length >= 1, `Expected ≥1 item, got ${items.length}`);
+  assert.equal(items[0].category, null, 'category should be null for 3-column table');
 });

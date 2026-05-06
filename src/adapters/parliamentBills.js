@@ -10,6 +10,25 @@ const SOURCE_URL = `${BASE_URL}/Nomothetiko-Ergo`;
 const REQUEST_TIMEOUT_MS = 15000;
 
 /**
+ * Known Hellenic Parliament section URLs for legislative work categories.
+ *
+ * The landing page (SOURCE_URL) renders its navigation menu via JavaScript, so
+ * server-side-only HTML parsing cannot discover these links dynamically.  We
+ * therefore hard-code the well-known section addresses here.  If the Parliament
+ * website moves a section, update this list.
+ */
+const KNOWN_SECTIONS = [
+  {
+    url: `${BASE_URL}/Nomothetiko-Ergo/Katatethenta-Nomosxedia`,
+    label: 'Κατατεθέντα (Σχέδιο νόμου)',
+  },
+  {
+    url: `${BASE_URL}/Nomothetiko-Ergo/Psifisthenta-Nomoschedia`,
+    label: 'Ψηφισθέντα Νομοσχέδια',
+  },
+];
+
+/**
  * Maps Greek status text fragments to canonical English status codes.
  */
 const STATUS_MAP = [
@@ -113,7 +132,73 @@ function extractItemsFromRoot(root, pageUrl, sectionLabel) {
   const items = [];
   const seen = new Set();
 
-  // ── Strategy 1: table rows ─────────────────────────────────────────────────
+  // ── Strategy 0: Hellenic Parliament legislationTable ───────────────────────
+  // The section pages use a <table class="legislationTable"> where columns are:
+  //   [0] Protocol  [1] Date  [2] Title (link)  [3] Ministry  [4] Status
+  // Try this targeted extractor first; it is more precise than the generic one.
+  const legRows = root.querySelectorAll(
+    'table.legislationTable tbody tr, table.erotiseis tbody tr',
+  );
+  for (const row of legRows) {
+    const cells = row.querySelectorAll('td');
+    if (cells.length < 3) continue;
+
+    // Title column: the cell that contains the anchor link.
+    // For a 5-column table it is cells[2]; gracefully try all cells.
+    let anchor = null;
+    let titleCell = null;
+    for (const cell of cells) {
+      const a = cell.querySelector('a');
+      if (a && normalizeText(a.text).length >= 10) {
+        anchor = a;
+        titleCell = cell;
+        break;
+      }
+    }
+    if (!anchor) continue;
+
+    const titleText = normalizeText(anchor.text);
+    const href = anchor.getAttribute('href');
+    const sourceUrl = resolveUrl(href);
+
+    const rawText = normalizeText(row.text);
+    // Date is typically in cells[1] for a 5-column table
+    const dateCellText =
+      cells.length >= 5 ? normalizeText(cells[1].text) : normalizeText(cells[0].text);
+    const dateMatch = (dateCellText || rawText).match(/\d{1,2}\/\d{1,2}\/\d{4}/);
+    const publishedAt = parseDate(dateMatch ? dateMatch[0] : null);
+
+    // Ministry appears in cells[3] for a 5-column table
+    const category =
+      cells.length >= 5 ? normalizeText(cells[3].text) || null : null;
+
+    // Status is last column or supplied by section label
+    const statusCellText = normalizeText(cells[cells.length - 1].text);
+    const status = mapStatus(sectionLabel || statusCellText);
+    const statusLabelEl = sectionLabel || statusCellText || null;
+
+    const id = deriveExternalId(titleText, publishedAt);
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    items.push({
+      external_id: id,
+      title_official: titleText,
+      summary_official: null,
+      status,
+      status_label_el: statusLabelEl,
+      category,
+      published_at: publishedAt,
+      meeting_date: null,
+      vote_date: null,
+      source_url: sourceUrl,
+      raw_text: rawText,
+    });
+  }
+
+  if (items.length > 0) return items;
+
+  // ── Strategy 1: generic table rows ────────────────────────────────────────
   const rows = root.querySelectorAll('table tr');
   for (const row of rows) {
     const cells = row.querySelectorAll('td');
@@ -306,65 +391,31 @@ function fetchHtml(url, redirectsLeft = 3) {
  * @returns {Promise<{ source_name: string, source_type: string, scraped_at: string, items: Array<object> }>}
  */
 async function scrapeParliamentBills() {
-  logger.info(`Fetching Hellenic Parliament page: ${SOURCE_URL}`);
-
-  let html;
-  try {
-    html = await fetchHtml(SOURCE_URL);
-  } catch (err) {
-    throw new Error(`Failed to fetch ${SOURCE_URL}: ${err.message}`);
+  logger.info(`Hellenic Parliament scraper starting — source: ${SOURCE_URL}`);
+  logger.info(`Using ${KNOWN_SECTIONS.length} known section URL(s) to crawl`);
+  for (const { url, label } of KNOWN_SECTIONS) {
+    logger.info(`  • ${label}: ${url}`);
   }
-
-  logger.debug(`Fetched ${html.length} bytes from ${SOURCE_URL}`);
-
-  const root = parse(html);
-
-  // Collect sub-section URLs from the navigation/links on the main page so we
-  // can fetch each category separately and tag items with the correct status.
-  const sectionLinks = [];
-  const sectionPatterns = [
-    { pattern: /katatethenta|Katatethenta|κατατεθ/i, label: 'Κατατεθέντα (Σχέδιο νόμου)' },
-    { pattern: /psifisthenta|Psifisthenta|ψηφισθ/i, label: 'Ψηφισθέντα Νομοσχέδια' },
-    { pattern: /nomoi|Nomoi|νόμοι/i, label: 'Νόμοι' },
-    { pattern: /epitropes|Epitropes|επιτροπ/i, label: 'Επεξεργασία στις Επιτροπές' },
-  ];
-
-  for (const anchor of root.querySelectorAll('a[href]')) {
-    const href = anchor.getAttribute('href') || '';
-    for (const { pattern, label } of sectionPatterns) {
-      if (pattern.test(href)) {
-        const resolved = resolveUrl(href);
-        if (!sectionLinks.find((s) => s.url === resolved)) {
-          sectionLinks.push({ url: resolved, label });
-        }
-        break;
-      }
-    }
-  }
-
-  logger.info(`Found ${sectionLinks.length} section link(s) to crawl`);
 
   const allItems = [];
 
-  // First, extract items from the main page itself
-  const mainItems = extractItemsFromRoot(root, SOURCE_URL, null);
-  if (mainItems.length > 0) {
-    logger.info(`Extracted ${mainItems.length} item(s) from main page`);
-    allItems.push(...mainItems);
-  }
-
-  // Then crawl each section page
-  for (const { url, label } of sectionLinks) {
+  // Crawl each known section page
+  for (const { url, label } of KNOWN_SECTIONS) {
     logger.info(`Fetching section "${label}": ${url}`);
+    let sectionHtml;
     try {
-      const sectionHtml = await fetchHtml(url);
-      const sectionRoot = parse(sectionHtml);
-      const sectionItems = extractItemsFromRoot(sectionRoot, url, label);
-      logger.info(`Extracted ${sectionItems.length} item(s) from "${label}"`);
-      allItems.push(...sectionItems);
+      sectionHtml = await fetchHtml(url);
     } catch (err) {
       logger.warn(`Could not fetch section "${label}" (${url}): ${err.message}`);
+      continue;
     }
+
+    logger.debug(`Fetched ${sectionHtml.length} byte(s) from "${label}"`);
+
+    const sectionRoot = parse(sectionHtml);
+    const sectionItems = extractItemsFromRoot(sectionRoot, url, label);
+    logger.info(`Extracted ${sectionItems.length} item(s) from "${label}"`);
+    allItems.push(...sectionItems);
   }
 
   // De-duplicate by external_id across all sections
@@ -394,4 +445,5 @@ module.exports = {
   normalizeText,
   resolveUrl,
   extractItemsFromRoot,
+  KNOWN_SECTIONS,
 };

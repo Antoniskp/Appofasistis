@@ -7,6 +7,7 @@ const logger = require('./logger');
 const Connection = require('./connection');
 const { startHeartbeat } = require('./heartbeat');
 const { createTaskRunner } = require('./taskRunner');
+const { startInternalApiServer } = require('./internalApi');
 
 logger.info(`Starting Appofasistis worker "${config.workerName}"...`);
 logger.info(`Server: ${config.serverUrl}`);
@@ -23,11 +24,17 @@ connection = new Connection((msg) => taskRunner.handleMessage(msg));
 connection.connect();
 
 const stopHeartbeat = startHeartbeat(connection, () => taskRunner.getActiveTasks());
+const stopInternalApi = startInternalApiServer({
+  port: config.internalApiPort,
+  workerToken: config.workerToken,
+  logger,
+});
 
 // Graceful shutdown
 function shutdown(signal) {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
   stopHeartbeat();
+  stopInternalApi();
   connection.close();
   process.exit(0);
 }

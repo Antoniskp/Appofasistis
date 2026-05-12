@@ -67,6 +67,7 @@ Copy `.env.example` to `.env` and set the following variables:
 |---|---|---|---|
 | `SERVER_URL` | ✅ | — | WebSocket URL of the Appofa server (e.g. `wss://appofasi.gr/ws/workers`) |
 | `WORKER_TOKEN` | ✅ | — | Authentication token obtained from the Appofa admin panel |
+| `INTERNAL_API_PORT` | | `3001` | Local HTTP port for `GET /health` and `POST /internal/snapshots` |
 | `WORKER_NAME` | | `unnamed-worker` | Human-readable name shown in the admin dashboard |
 | `MAX_CONCURRENT_TASKS` | | `3` | How many tasks to process simultaneously |
 | `HEARTBEAT_INTERVAL` | | `10000` | How often (ms) to send a heartbeat to the server |
@@ -93,6 +94,7 @@ Copy `.env.example` to `.env` and set the following variables:
 │   ├── taskRunner.js         # Receives tasks, routes to handlers, sends results
 │   ├── logger.js             # Timestamped logger with emoji prefixes
 │   ├── config.js             # Loads .env, validates required config
+│   ├── internalApi.js        # Local HTTP endpoints for health + protected snapshots ingest
 │   ├── adapters/
 │   │   └── parliamentBills.js  # Fetch + parse Hellenic Parliament HTML → normalised items
 │   ├── jobs/
@@ -107,10 +109,41 @@ Copy `.env.example` to `.env` and set the following variables:
 │   └── parliament-bills.json  # Generated locally by scrape:parliament (not in Git)
 └── test/
     ├── linkPreview.test.js
+    ├── internalApi.test.js
     ├── parliamentBills.test.js
     ├── pollStats.test.js
     ├── leaderboard.test.js
     └── textAnalysis.test.js
+```
+
+## Internal API (Appofa integration MVP)
+
+### `GET /health`
+
+Returns:
+
+```json
+{ "ok": true, "service": "appofasistis", "time": "2026-05-12T20:00:00.000Z" }
+```
+
+### `POST /internal/snapshots`
+
+- Required header: `x-worker-token: <WORKER_TOKEN>`
+- Body must be a JSON object.
+
+Success response:
+
+```json
+{ "ok": true, "receivedAt": "2026-05-12T20:00:00.000Z" }
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:3001/internal/snapshots \
+  -H "content-type: application/json" \
+  -H "x-worker-token: $WORKER_TOKEN" \
+  -d '{"source":"appofa","items":[]}'
 ```
 
 ## Supported Task Types

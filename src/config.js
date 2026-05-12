@@ -7,6 +7,7 @@ const REQUIRED = ['SERVER_URL', 'WORKER_TOKEN'];
 const config = {
   serverUrl: process.env.SERVER_URL || '',
   workerToken: process.env.WORKER_TOKEN || '',
+  internalApiPort: parseInt(process.env.INTERNAL_API_PORT || '3001', 10),
   workerName: process.env.WORKER_NAME || 'unnamed-worker',
   maxConcurrentTasks: parseInt(process.env.MAX_CONCURRENT_TASKS || '3', 10),
   heartbeatInterval: parseInt(process.env.HEARTBEAT_INTERVAL || '10000', 10),

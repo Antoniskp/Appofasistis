@@ -10,6 +10,7 @@ const { createTaskRunner } = require('./taskRunner');
 const { startInternalApiServer } = require('./internalApi');
 
 logger.info(`Starting Appofasistis worker "${config.workerName}"...`);
+logger.info(`Worker ID: ${config.workerId}`);
 logger.info(`Server: ${config.serverUrl}`);
 logger.info(`Max concurrent tasks: ${config.maxConcurrentTasks}`);
 

@@ -217,6 +217,7 @@ All messages are JSON objects. The worker:
 ## Multi-worker deployment notes
 
 - Give each worker a unique `WORKER_ID` (for example: `worker-athens-01`, `worker-athens-02`).
+- Set `WORKER_ID` explicitly in production so identity stays stable across restarts.
 - Reuse or rotate `WORKER_TOKEN` based on your backend policy; both `x-worker-token` and the legacy query token are sent for compatibility.
 - Keep `WORKER_NAME` human-friendly for dashboards and `WORKER_ID` stable for backend identity/debugging.
 

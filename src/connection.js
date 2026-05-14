@@ -92,7 +92,7 @@ class Connection {
   send(obj, attempt = 1) {
     const message = {
       ...obj,
-      workerId: obj && obj.workerId ? obj.workerId : config.workerId,
+      workerId: (obj && obj.workerId) || config.workerId,
     };
     const messageType = message && message.type ? message.type : 'unknown';
 

@@ -67,6 +67,7 @@ Copy `.env.example` to `.env` and set the following variables:
 |---|---|---|---|
 | `SERVER_URL` | ✅ | — | WebSocket URL of the Appofa server (e.g. `wss://appofasi.gr/ws/workers`) |
 | `WORKER_TOKEN` | ✅ | — | Authentication token obtained from the Appofa admin panel |
+| `WORKER_ID` | | Hostname (or generated UUID fallback) | Unique worker identity sent to the backend in auth headers and outbound messages |
 | `INTERNAL_API_PORT` | | `3001` | Local HTTP port for `GET /health` and `POST /internal/snapshots` |
 | `WORKER_NAME` | | `unnamed-worker` | Human-readable name shown in the admin dashboard |
 | `MAX_CONCURRENT_TASKS` | | `3` | How many tasks to process simultaneously |
@@ -108,6 +109,8 @@ Copy `.env.example` to `.env` and set the following variables:
 ├── output/
 │   └── parliament-bills.json  # Generated locally by scrape:parliament (not in Git)
 └── test/
+    ├── config.test.js
+    ├── connection.test.js
     ├── linkPreview.test.js
     ├── internalApi.test.js
     ├── parliamentBills.test.js
@@ -186,9 +189,14 @@ Analyses text for word count, reading time, and top keywords.
 
 All messages are JSON objects. The worker:
 
+0. **Authenticates the connection** with:
+   - Query token (backward compatibility): `?token=<WORKER_TOKEN>`
+   - Headers: `x-worker-id: <WORKER_ID>`, `x-worker-token: <WORKER_TOKEN>`
+   - Outbound send failures are retried with exponential backoff and structured logs (without logging secrets)
+
 1. **Registers** on connection open:
    ```json
-   { "type": "register", "name": "my-desktop", "capabilities": ["linkPreview", "pollStats", "leaderboard", "textAnalysis"], "maxConcurrentTasks": 3 }
+   { "type": "register", "workerId": "worker-athens-01", "name": "my-desktop", "capabilities": ["linkPreview", "pollStats", "leaderboard", "textAnalysis"], "maxConcurrentTasks": 3 }
    ```
 
 2. **Receives tasks** from the server:
@@ -198,13 +206,32 @@ All messages are JSON objects. The worker:
 
 3. **Sends results** back:
    ```json
-   { "type": "taskResult", "taskId": "abc123", "status": "success", "result": { ... } }
+   { "type": "taskResult", "workerId": "worker-athens-01", "taskId": "abc123", "status": "success", "result": { ... } }
    ```
 
 4. **Sends heartbeats** periodically:
    ```json
-   { "type": "heartbeat", "load": 0.5, "memory": { "used": 512, "total": 8192, "usedMB": 512, "totalMB": 8192 }, "activeTasks": 1 }
+   { "type": "heartbeat", "workerId": "worker-athens-01", "load": 0.5, "memory": { "used": 512, "total": 8192, "usedMB": 512, "totalMB": 8192 }, "activeTasks": 1 }
    ```
+
+## Multi-worker deployment notes
+
+- Give each worker a unique `WORKER_ID` (for example: `worker-athens-01`, `worker-athens-02`).
+- Set `WORKER_ID` explicitly in production so identity stays stable across restarts.
+- Reuse or rotate `WORKER_TOKEN` based on your backend policy; both `x-worker-token` and the legacy query token are sent for compatibility.
+- Keep `WORKER_NAME` human-friendly for dashboards and `WORKER_ID` stable for backend identity/debugging.
+
+Example `.env` snippets:
+
+```bash
+# Worker A
+WORKER_ID=worker-athens-01
+WORKER_NAME=athens-desktop-01
+
+# Worker B
+WORKER_ID=worker-athens-02
+WORKER_NAME=athens-desktop-02
+```
 
 ## Development
 

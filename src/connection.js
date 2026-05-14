@@ -5,6 +5,13 @@ const config = require('./config');
 const logger = require('./logger');
 
 const MAX_RECONNECT_DELAY = 60000; // 60 seconds cap
+const SEND_RETRY_BASE_DELAY = 500;
+const SEND_RETRY_MAX_ATTEMPTS = 3;
+
+function sanitizeErrorMessage(message) {
+  const text = typeof message === 'string' ? message : String(message || 'Unknown error');
+  return config.workerToken ? text.split(config.workerToken).join('[REDACTED]') : text;
+}
 
 class Connection {
   constructor(onMessage) {
@@ -19,9 +26,13 @@ class Connection {
     if (this._closing) return;
 
     const url = `${config.serverUrl}?token=${config.workerToken}`;
+    const headers = {
+      'x-worker-id': config.workerId,
+      'x-worker-token': config.workerToken,
+    };
     logger.info(`Connecting to ${config.serverUrl} ...`);
 
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, { headers });
     this._ws = ws;
 
     ws.on('open', () => {
@@ -29,6 +40,7 @@ class Connection {
       logger.info('WebSocket connection established.');
       this.send({
         type: 'register',
+        workerId: config.workerId,
         name: config.workerName,
         capabilities: ['linkPreview', 'pollStats', 'leaderboard', 'textAnalysis'],
         maxConcurrentTasks: config.maxConcurrentTasks,
@@ -48,13 +60,21 @@ class Connection {
 
     ws.on('close', (code, reason) => {
       logger.warn(`WebSocket closed (code=${code}, reason=${reason || 'none'}).`);
+      if (code === 1008 || code === 4001 || code === 4003) {
+        logger.warn('Authentication failure while connecting to backend.', {
+          workerId: config.workerId,
+          code,
+        });
+      }
       if (!this._closing) {
         this._scheduleReconnect();
       }
     });
 
     ws.on('error', (err) => {
-      logger.error('WebSocket error:', err.message);
+      logger.error('WebSocket error:', sanitizeErrorMessage(err.message), {
+        workerId: config.workerId,
+      });
       // The 'close' event will fire after this, triggering reconnect
     });
   }
@@ -69,15 +89,56 @@ class Connection {
     this._reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
-  send(obj) {
+  send(obj, attempt = 1) {
+    const message = {
+      ...obj,
+      workerId: (obj && obj.workerId) || config.workerId,
+    };
+    const messageType = message && message.type ? message.type : 'unknown';
+
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
-      logger.warn('Cannot send — WebSocket is not open.');
+      if (attempt >= SEND_RETRY_MAX_ATTEMPTS) {
+        logger.error('Outbound API call failed: WebSocket not open.', {
+          workerId: config.workerId,
+          messageType,
+          attempt,
+        });
+        return;
+      }
+
+      const delay = Math.min(SEND_RETRY_BASE_DELAY * Math.pow(2, attempt - 1), MAX_RECONNECT_DELAY);
+      logger.warn('Outbound API call failed; retrying send.', {
+        workerId: config.workerId,
+        messageType,
+        attempt,
+        nextDelayMs: delay,
+      });
+      setTimeout(() => this.send(message, attempt + 1), delay);
       return;
     }
+
     try {
-      this._ws.send(JSON.stringify(obj));
+      this._ws.send(JSON.stringify(message));
     } catch (err) {
-      logger.error('Failed to send message:', err.message);
+      if (attempt >= SEND_RETRY_MAX_ATTEMPTS) {
+        logger.error('Outbound API call failed permanently during send.', {
+          workerId: config.workerId,
+          messageType,
+          attempt,
+          error: sanitizeErrorMessage(err.message),
+        });
+        return;
+      }
+
+      const delay = Math.min(SEND_RETRY_BASE_DELAY * Math.pow(2, attempt - 1), MAX_RECONNECT_DELAY);
+      logger.warn('Outbound API call send error; retrying.', {
+        workerId: config.workerId,
+        messageType,
+        attempt,
+        nextDelayMs: delay,
+        error: sanitizeErrorMessage(err.message),
+      });
+      setTimeout(() => this.send(message, attempt + 1), delay);
     }
   }
 

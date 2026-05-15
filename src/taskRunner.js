@@ -1,5 +1,6 @@
 'use strict';
 
+const os = require('os');
 const config = require('./config');
 const logger = require('./logger');
 const taskHandlers = require('./tasks');
@@ -86,6 +87,36 @@ function createTaskRunner(connection) {
 
       case 'ack':
         logger.debug(`Server acknowledged: ${JSON.stringify(msg)}`);
+        break;
+
+      case 'health_request': {
+        const totalMem = os.totalmem();
+        const usedMem = totalMem - os.freemem();
+
+        connection.send({
+          type: 'health_response',
+          requestId: msg.requestId,
+          ok: true,
+          service: 'appofasistis',
+          time: new Date().toISOString(),
+          load: os.loadavg()[0],
+          memory: {
+            usedMB: Math.round(usedMem / 1024 / 1024),
+            totalMB: Math.round(totalMem / 1024 / 1024),
+          },
+          activeTasks: getActiveTasks(),
+        });
+        break;
+      }
+
+      case 'snapshot_request':
+        logger.info('Snapshot received via WebSocket:', JSON.stringify(msg.snapshot));
+        connection.send({
+          type: 'snapshot_response',
+          requestId: msg.requestId,
+          ok: true,
+          receivedAt: new Date().toISOString(),
+        });
         break;
 
       default:

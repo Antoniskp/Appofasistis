@@ -2,6 +2,88 @@
   "schema_version": 1,
   "entries": [
     {
+      "number": "5211",
+      "year": "2025",
+      "pdf_sha256": "2a8162743248d0caee58b51905c7fff14f4e8d2dbddb9a6d371017f16601e3be",
+      "native_pages": [2, 91],
+      "native_page_rules": {
+        "2": {
+          "start_anchor": "Άρθρο πρώτο\n",
+          "end_anchor": "έχει ως εξής:",
+          "removed_prefix_sha256": "2bfb5fc78ecec8c29e101cfae6325bd2d874bce6dbe60cfbab5769a0f77102dc",
+          "removed_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "text_sha256": "49725f0f81024c23a9613072f476e9319c6de301c09048490a3467dfb6d27889"
+        },
+        "91": {
+          "start_anchor": "Άρθρο δεύτερο\n",
+          "end_anchor": null,
+          "removed_prefix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "removed_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "text_sha256": "7aa21b17a9f950d616af9c6347c01f9cc3318596e58fd772fe9c7815c9639725"
+        }
+      },
+      "primary_titles": {
+        "1": "Κύρωση Μνημονίου Κατανόησης",
+        "2": "Έναρξη ισχύος"
+      },
+      "primary_headings": [
+        {
+          "number": "1",
+          "label": "Άρθρο πρώτο",
+          "page": 2
+        },
+        {
+          "number": "2",
+          "label": "Άρθρο δεύτερο",
+          "page": 91
+        }
+      ],
+      "pdf_only_pages": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90],
+      "coverage_note": "Το κυρούμενο μνημόνιο και τα παραρτήματά του διατίθενται στις σελίδες 3–90 του πρωτοτύπου.",
+      "review_basis": "Gazette renders verify the two enacting articles and the agreement boundaries. The exact retained and excluded native slices are checksum verified."
+    },
+    {
+      "number": "5213",
+      "year": "2025",
+      "pdf_sha256": "f70c2d300c22769fb88d32655f40c6f5bded0bdf05a147097e45c76da7982945",
+      "native_pages": [1, 64],
+      "native_page_rules": {
+        "1": {
+          "start_anchor": "Άρθρο πρώτο\n",
+          "end_anchor": "έχει ως εξής:",
+          "removed_prefix_sha256": "9e1157619f528209365db7f5173ced92ee02123691f81dd06cca396537aaa145",
+          "removed_suffix_sha256": "6f73ed7bb8af0a37c4721d80b23a0dd8a1a28e0791655e53b9f1c63778e916e0",
+          "text_sha256": "d03b9f9760515f1c2b4c30b66e5fe1997d52345bf00ce1f32cd5c73c7a7c860d"
+        },
+        "64": {
+          "start_anchor": "Άρθρο δεύτερο\n",
+          "end_anchor": null,
+          "removed_prefix_sha256": "ebc4f60a534f882928e7a819b4839460cd65731c147045611a8aab6b854abcda",
+          "removed_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "text_sha256": "49571f452b048513574ef8c7a52daf198448e3c385498a24f94c7a84c3745ed2"
+        }
+      },
+      "primary_titles": {
+        "1": "Κύρωση Τροποποιημένης Συμφωνίας\nΚοινοπραξίας ELIXIR για την ίδρυση\nτης Ευρωπαϊκής Ερευνητικής Υποδομής\nΒιολογικών Δεδομένων (ELIXIR)",
+        "2": "Έναρξη ισχύος"
+      },
+      "primary_headings": [
+        {
+          "number": "1",
+          "label": "Άρθρο πρώτο",
+          "page": 1
+        },
+        {
+          "number": "2",
+          "label": "Άρθρο δεύτερο",
+          "page": 64
+        }
+      ],
+      "pdf_only_pages": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63],
+      "coverage_note": "Η κυρούμενη τροποποιημένη συμφωνία και τα παραρτήματά της διατίθενται στις σελίδες 2–63 του πρωτοτύπου.",
+      "review_basis": "Gazette renders verify the two enacting articles and the agreement boundaries. The exact retained and excluded native slices are checksum verified."
+    },
+    {
       "number": "5219",
       "year": "2025",
       "pdf_sha256": "a7440f27be0a2f5ed0ebbebd6edfac360c30da6d5132e27c2fa089d729f7bcfc",

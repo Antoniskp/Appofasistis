@@ -278,6 +278,14 @@ def extract(directory,entry):
  starts=[];offset=0;parts=[]
  for i,page in enumerate(pages):starts.append(offset);parts.append(page);offset+=len(page);parts.append(separators[i] if i<len(pages)-1 else '');offset+=len(separators[i]) if i<len(pages)-1 else 0
  text=''.join(parts);matches=list(heading_pattern.finditer(text))
+ nested_starts=set()
+ for heading in entry.get('reviewed_nested_headings',[]):
+  page=heading['page'];anchor=heading['anchor']
+  if not entry.get('pdf_sha256') or not 1<=page<=len(pages) or pages[page-1].count(anchor)!=1:raise ValueError('Reviewed nested heading anchor changed')
+  start=starts[page-1]+pages[page-1].index(anchor)
+  if not heading_pattern.match(text,start) or start in nested_starts:raise ValueError('Invalid reviewed nested heading')
+  nested_starts.add(start)
+ matches=[match for match in matches if match.start() not in nested_starts]
  if layout:matches=[h for h in matches if int(h[1])<=layout['primary_heading_ceiling']]
  first=next(i for i,h in enumerate(matches) if heading_number(h,ordinal)=='1');matches=matches[first:]
  if geometry_document:geometry_document.close()

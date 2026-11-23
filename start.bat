@@ -1,41 +1,33 @@
 @echo off
+setlocal
 cd /d "%~dp0"
-
+title Appofasistis
 echo =============================================
-echo   Appofasistis - Starting Worker
-echo =============================================
-echo.
-
-:: Check node_modules exists
-if not exist "node_modules" (
-    echo [ERROR] Dependencies are not installed.
-    echo.
-    echo Please double-click install.bat first, then try again.
-    echo.
-    pause
-    exit /b 1
-)
-
-:: Check .env exists
-if not exist ".env" (
-    echo [ERROR] Configuration file .env not found.
-    echo.
-    echo Please double-click install.bat first, then try again.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [OK] All checks passed. Starting worker...
-echo.
-echo Press Ctrl+C to stop.
-echo.
-
-npm start
-
-echo.
-echo =============================================
-echo   Worker stopped.
+echo   Appofasistis - Greek Laws and Worker
 echo =============================================
 echo.
-pause
+where node >nul 2>&1
+if errorlevel 1 goto missing_node
+node -e "if (Number(process.versions.node.split('.')[0]) < 24) { console.error('Node.js 24 or newer is required.'); process.exit(1); }"
+if errorlevel 1 goto failed
+if not exist "node_modules\neo4j-driver\package.json" goto missing_dependencies
+echo Starting... Keep this window open while using the app.
+echo.
+node src/index.js
+set "APP_EXIT_CODE=%ERRORLEVEL%"
+if not "%APP_EXIT_CODE%"=="0" goto failed
+goto finished
+:missing_node
+echo [ERROR] Node.js was not found. Install Node.js 24 or newer.
+goto failed
+:missing_dependencies
+echo [ERROR] Dependencies are missing. Run install.bat first.
+:failed
+echo.
+echo [ERROR] Appofasistis could not start. Read the message above.
+echo Database startup details are in data\neo4j-launcher.log.
+:finished
+echo.
+echo Press any key to close this launcher.
+pause >nul
+endlocal

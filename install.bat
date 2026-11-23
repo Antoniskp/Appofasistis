@@ -28,10 +28,10 @@ for /f "tokens=1 delims=." %%v in ('node --version') do (
 :: Strip the leading 'v'
 set "NODE_MAJOR=%NODE_MAJOR:~1%"
 
-if %NODE_MAJOR% LSS 18 (
+if %NODE_MAJOR% LSS 24 (
     echo [ERROR] Your Node.js version is too old.
     echo.
-    echo Appofasistis requires Node.js 18 or newer.
+    echo Appofasistis requires Node.js 24 or newer.
     echo Please update from: https://nodejs.org
     echo.
     pause
@@ -44,7 +44,7 @@ echo.
 :: Install dependencies
 echo Installing dependencies...
 echo.
-npm install
+call npm install
 if errorlevel 1 (
     echo.
     echo [ERROR] npm install failed. Check the output above for details.
@@ -57,16 +57,24 @@ echo.
 echo [OK] Dependencies installed.
 echo.
 
+:: Set up the portable local graph database
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup-graph.ps1"
+if errorlevel 1 (
+    echo [ERROR] Local graph database setup failed.
+    pause
+    exit /b 1
+)
+
 :: Set up .env
 if not exist ".env" (
     copy ".env.example" ".env" >nul
     echo [OK] Created .env from .env.example
     echo.
     echo =============================================
-    echo   ACTION REQUIRED: Edit .env
+    echo   OPTIONAL: Connect to Appofa
     echo =============================================
     echo.
-    echo Open .env in Notepad and fill in:
+    echo The local law app works without Appofa. To connect later, edit .env:
     echo   SERVER_URL   - your Appofa server WebSocket URL
     echo   WORKER_TOKEN - your token from the Appofa admin panel
     echo.
@@ -77,7 +85,7 @@ if not exist ".env" (
 
 echo =============================================
 echo   Setup complete!
-echo   Double-click start.bat to run the worker.
+echo   Double-click start-local.bat to open your local law app.
 echo =============================================
 echo.
 pause

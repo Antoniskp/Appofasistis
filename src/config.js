@@ -3,10 +3,14 @@
 require('dotenv').config();
 const os = require('os');
 const crypto = require('crypto');
+const path = require('path');
 
 const REQUIRED = ['SERVER_URL', 'WORKER_TOKEN'];
 
 const config = {
+  lawLibraryShare: process.env.LAW_LIBRARY_SHARE === 'true',
+  workerEnabled: process.env.WORKER_ENABLED === 'true' || (process.env.WORKER_ENABLED !== 'false' && Boolean(process.env.SERVER_URL && process.env.WORKER_TOKEN)),
+  legalDataDirectory: path.resolve(process.env.LEGAL_DATA_DIR || path.join(__dirname, '..', 'data')),
   serverUrl: process.env.SERVER_URL || '',
   workerToken: process.env.WORKER_TOKEN || '',
   workerId: process.env.WORKER_ID || os.hostname() || crypto.randomUUID(),
@@ -23,6 +27,7 @@ const config = {
  * Exits the process with a clear error message if any are missing.
  */
 function validate() {
+  if (!config.workerEnabled) return;
   for (const key of REQUIRED) {
     if (!process.env[key]) {
       console.error(`❌ Missing required environment variable: ${key}`);

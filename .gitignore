@@ -22,5 +22,8 @@ Thumbs.db
 # Build artifacts
 dist/
 
-# Scraper output (committed as .gitkeep only; actual data files are local)
-output/*.json
+# Local downloads, generated output, and verification artifacts
+/output/*
+!/output/.gitkeep
+data/
+.runtime/

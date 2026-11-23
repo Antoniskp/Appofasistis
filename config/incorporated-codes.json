@@ -1,0 +1,160 @@
+{
+  "planning": {
+    "document_id": "law:5306:2026",
+    "incorporated_in_unit_id": "law:5306:2026:article:1",
+    "sha256": "f545387a086c12133bf97653ea1219fdae26af80be609d6ad6ac59ab63c89b65",
+    "pdf_filename": "law-5306-2026.pdf",
+    "filename": "code-planning-5306-2026.json",
+    "source_url": "https://api.et.gr/apiLAW/1/2026/5306/pdf",
+    "first_page": 14,
+    "boundary_page": 179,
+    "first_article": 1,
+    "last_article": 200,
+    "total_articles": 477,
+    "reviewed_titles": {
+      "179": {
+        "title": "Αποβολή εγκατεστημένων\nστα απαλλοτριούμενα ακίνητα",
+        "source_page": 156,
+        "reason": "The two-line heading is printed in regular weight; visually verified in the checksum-pinned PDF."
+      }
+    }
+  },
+  "property_tax": {
+    "document_id": "law:5219:2025",
+    "incorporated_in_unit_id": "law:5219:2025:article:1",
+    "sha256": "a7440f27be0a2f5ed0ebbebd6edfac360c30da6d5132e27c2fa089d729f7bcfc",
+    "pdf_filename": "law-5219-2025.pdf",
+    "filename": "code-property-tax-5219-2025.json",
+    "source_url": "https://api.et.gr/apiLAW/1/2025/5219/pdf",
+    "scope_title": "Κώδικας Φορολογίας Περιουσίας",
+    "first_page": 4,
+    "boundary_page": 69,
+    "first_article": 1,
+    "last_article": 124,
+    "total_articles": 124,
+    "end_heading": "Άρθρο δεύτερο",
+    "page_repairs": {
+      "12": {
+        "native_fonts": []
+      },
+      "20": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "21": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "22": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "23": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "24": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "25": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      },
+      "53": {
+        "native_fonts": []
+      },
+      "67": {
+        "native_fonts": [
+          "/RRCVXG+MyriadPro-Regular",
+          "/RRCVXG+MyriadPro-Semibold"
+        ]
+      }
+    },
+    "pdf_only_pages": [
+      12,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      53,
+      67,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129
+    ],
+    "text_coverage": "ratifying_law_with_incorporated_code",
+    "coverage_note": "Τα κυρωτικά άρθρα και τα 124 άρθρα του Κώδικα έχουν χωριστούς συνδέσμους. Ορισμένοι πίνακες και συνοδευτικά εδάφια, καθώς και το παράρτημα αντιστοίχισης στις σελίδες 70–129, διατίθενται στο πρωτότυπο."
+  }
+}

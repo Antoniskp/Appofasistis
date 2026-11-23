@@ -3,6 +3,7 @@
 const WebSocket = require('ws');
 const config = require('./config');
 const logger = require('./logger');
+const taskHandlers = require('./tasks');
 
 const MAX_RECONNECT_DELAY = 60000; // 60 seconds cap
 const SEND_RETRY_BASE_DELAY = 500;
@@ -14,8 +15,9 @@ function sanitizeErrorMessage(message) {
 }
 
 class Connection {
-  constructor(onMessage) {
+  constructor(onMessage, lawLibrary = null) {
     this._onMessage = onMessage;
+    this._lawLibrary = lawLibrary;
     this._ws = null;
     this._reconnectAttempt = 0;
     this._reconnectTimer = null;
@@ -42,7 +44,7 @@ class Connection {
         type: 'register',
         workerId: config.workerId,
         name: config.workerName,
-        capabilities: ['linkPreview', 'pollStats', 'leaderboard', 'textAnalysis'],
+        capabilities: this._lawLibrary ? [...Object.keys(taskHandlers), this._lawLibrary.capability] : Object.keys(taskHandlers),
         maxConcurrentTasks: config.maxConcurrentTasks,
       });
     });
@@ -55,10 +57,11 @@ class Connection {
         logger.warn('Received non-JSON message, ignoring.', data.toString().slice(0, 200));
         return;
       }
-      this._onMessage(parsed);
+      if (!this._lawLibrary?.handleMessage(parsed, ws)) this._onMessage(parsed);
     });
 
     ws.on('close', (code, reason) => {
+      this._lawLibrary?.handleClose(ws);
       logger.warn(`WebSocket closed (code=${code}, reason=${reason || 'none'}).`);
       if (code === 1008 || code === 4001 || code === 4003) {
         logger.warn('Authentication failure while connecting to backend.', {
@@ -153,6 +156,10 @@ class Connection {
       this._ws = null;
     }
     logger.info('Connection closed gracefully.');
+  }
+
+  get connected() {
+    return Boolean(this._ws && this._ws.readyState === WebSocket.OPEN);
   }
 }
 

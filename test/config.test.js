@@ -24,7 +24,7 @@ test('config uses WORKER_ID when provided', () => {
 
 test('config falls back to hostname when WORKER_ID is missing', () => {
   const previous = process.env.WORKER_ID;
-  delete process.env.WORKER_ID;
+  process.env.WORKER_ID = '';
 
   try {
     const config = reloadConfig();

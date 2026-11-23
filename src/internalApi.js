@@ -45,8 +45,9 @@ function readJsonBody(req) {
   });
 }
 
-function startInternalApiServer({ port, workerToken, logger }) {
+function startInternalApiServer({ port, workerToken, logger, lawApp }) {
   const server = http.createServer(async (req, res) => {
+    if (lawApp && await lawApp.handle(req, res)) return;
     if (req.method === 'GET' && req.url === '/health') {
       sendJson(res, 200, {
         ok: true,
@@ -110,15 +111,20 @@ function startInternalApiServer({ port, workerToken, logger }) {
     });
   });
 
-  server.listen(port, () => {
+  server.listen(port, '127.0.0.1', () => {
     const address = server.address();
     const resolvedPort = typeof address === 'object' && address ? address.port : port;
     logger.info(`Internal API listening on port ${resolvedPort}`);
   });
+  server.on('error', (error) => {
+    logger.error('Unable to start local API:', error.message);
+  });
 
-  return () => {
+  const stop = () => {
     server.close();
   };
+  stop.server = server;
+  return stop;
 }
 
 module.exports = {

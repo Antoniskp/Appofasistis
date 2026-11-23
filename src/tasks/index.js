@@ -4,6 +4,7 @@ const { linkPreview } = require('./linkPreview');
 const { pollStats } = require('./pollStats');
 const { leaderboard } = require('./leaderboard');
 const { textAnalysis } = require('./textAnalysis');
+const { greekLegalCitations, importParliamentLaws, normalizeGreekLaw } = require('./greekLaw');
 
 /**
  * Task registry — maps task type strings to handler functions.
@@ -16,6 +17,9 @@ const taskHandlers = {
   pollStats,
   leaderboard,
   textAnalysis,
+  greekLegalCitations,
+  importParliamentLaws,
+  normalizeGreekLaw,
 };
 
 module.exports = taskHandlers;

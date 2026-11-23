@@ -67,6 +67,8 @@ test('connection sends worker auth headers and identifies outbound messages', as
     assert.equal(received[0].workerId, 'worker-a');
     assert.equal(received[0].name, 'test-worker-name');
     assert.equal(received[0].maxConcurrentTasks, 4);
+    assert.ok(received[0].capabilities.includes('importParliamentLaws'));
+    assert.ok(received[0].capabilities.includes('normalizeGreekLaw'));
 
     connection.send({ type: 'pong' });
 

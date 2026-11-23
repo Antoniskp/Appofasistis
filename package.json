@@ -4,15 +4,22 @@
   "description": "Desktop worker node for Appofa — offloads server tasks to volunteer PCs",
   "main": "src/index.js",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
+    "local": "node scripts/start-local.js",
+    "db:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-graph.ps1",
+    "db:restore": "node scripts/restore-graph.js",
+    "laws:import-collection": "node scripts/import-collection-laws.js",
     "test": "node --test test/*.test.js",
-    "scrape:parliament": "node src/jobs/runParliamentBills.js"
+    "scrape:parliament": "node src/jobs/runParliamentBills.js",
+    "laws:import-foundations": "node scripts/import-foundation-batch.js",
+    "laws:import-history": "node scripts/import-historical-laws.js"
   },
   "dependencies": {
+    "neo4j-driver": "^6.3.2",
     "dotenv": "^16.4.5",
     "node-html-parser": "^6.1.13",
     "ws": "^8.18.0"

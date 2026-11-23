@@ -13,10 +13,26 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.26.33-community
+        env:
+          NEO4J_AUTH: neo4j/ci-graph-password
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ci-graph-password 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+    env:
+      NEO4J_TESTS: 'true'
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ci-graph-password
 
     strategy:
       matrix:
-        node-version: ["18", "20", "22"]
+        node-version: ["24"]
 
     steps:
       - uses: actions/checkout@v4
